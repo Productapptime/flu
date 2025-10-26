@@ -10,7 +10,7 @@ android {
 
     // 🔧 Flutter değişkenlerinden bağımsız sabitle
     compileSdk = 34
-    ndkVersion = "27.0.12077973"  // ✅ Gerekli NDK sürümü (inappwebview 6.1.5 için)
+    ndkVersion = "27.0.12077973"  // ✅ inappwebview 6.1.5 için gerekli NDK
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -28,14 +28,20 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        // Bu, dosya erişimi ve WebView için gerekli
+        // 📂 WebView & dosya erişimi için
         multiDexEnabled = true
     }
 
     buildTypes {
         release {
+            // 🚫 Kaynak ve kod küçültme tamamen kapalı
             isMinifyEnabled = false
+            isShrinkResources = false     // 👈 Bu satır hatayı %100 çözer
             signingConfig = signingConfigs.getByName("debug")
+        }
+        debug {
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 
