@@ -27,19 +27,17 @@ See https://github.com/adobe-type-tools/cmap-resources
   <meta name="google" content="notranslate">
   <title>PDF.js viewer</title>
 
-  <!-- 🌍 Çoklu dil desteği -->
+  <!-- Çeviri -->
   <link rel="resource" type="application/l10n" href="locale/locale.json">
 
-  <!-- 🧩 PDF.js çekirdeği -->
+  <!-- PDF.js modül bağlantısı -->
   <script type="module">
-    import * as pdfjsLib from '../build/pdf.mjs';
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '../build/pdf.worker.mjs';
+    import * as pdfjsLib from "../build/pdf.mjs";
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "../build/pdf.worker.mjs";
+    import "./viewer.mjs";
   </script>
 
-  <!-- 📄 Görüntüleyici (viewer) -->
-  <script type="module" src="viewer.mjs"></script>
-
-  <!-- 🎨 Stil dosyası -->
+  <!-- Stil -->
   <link rel="stylesheet" href="viewer.css">
 </head>
 
