@@ -34,14 +34,19 @@ class _PDFHomeState extends State<PDFHome> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('PDF Manager + PDF.js'),
-        backgroundColor: Colors.red,
+        title: const Text(
+          'PDF Manager + PDF.js',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
         centerTitle: true,
+        backgroundColor: Colors.red,
       ),
       body: Stack(
         children: [
           InAppWebView(
+            // 📂 assets/web/index.html dosyasını açıyoruz
             initialFile: "assets/web/index.html",
+
             initialSettings: InAppWebViewSettings(
               javaScriptEnabled: true,
               allowFileAccessFromFileURLs: true,
@@ -50,22 +55,30 @@ class _PDFHomeState extends State<PDFHome> {
               useOnDownloadStart: true,
               mediaPlaybackRequiresUserGesture: false,
               transparentBackground: true,
+              supportZoom: false, // CSS bozulmasın diye zoom kapalı
             ),
+
             onWebViewCreated: (controller) {
               webViewController = controller;
             },
-            onLoadStop: (controller, url) {
+
+            onLoadStop: (controller, url) async {
               setState(() => isLoaded = true);
+              debugPrint("✅ Sayfa yüklendi: $url");
             },
+
             onConsoleMessage: (controller, message) {
-              debugPrint("WEBVIEW LOG: ${message.message}");
+              debugPrint("🌐 [WebView Log] ${message.message}");
             },
+
+            // 🔹 Dosya seçici (input type=file) desteği
             androidOnShowFileChooser:
                 (controller, fileChooserParams) async {
-              // ✅ Bu kısım input[type=file] için dosya seçici açar
-              return null; // Android'in kendi picker'ını açar
+              return null; // Android’in kendi picker’ını açar
             },
           ),
+
+          // ⏳ Yüklenme göstergesi
           if (!isLoaded)
             const Center(
               child: CircularProgressIndicator(color: Colors.red),
