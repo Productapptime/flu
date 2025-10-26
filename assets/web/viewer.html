@@ -21,7 +21,7 @@ Adobe CMap resources are covered by their own copyright but the same license:
 See https://github.com/adobe-type-tools/cmap-resources
 -->
 <html dir="ltr" mozdisallowselectionprint>
-  <head>
+<head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <meta name="google" content="notranslate">
@@ -37,23 +37,34 @@ See https://github.com/adobe-type-tools/cmap-resources
     import "./viewer.mjs";
   </script>
 
-  <!-- 🌍 Locale parametresi -->
+  <!-- 🌍 Locale parametresi (geliştirilmiş versiyon) -->
   <script>
-    const urlParams = new URLSearchParams(window.location.search);
-    const lang = urlParams.get('locale') || 'en-US';
+    document.addEventListener("DOMContentLoaded", () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const lang = urlParams.get("locale") || "en-US";
 
-    // Eğer PDFViewerApplicationOptions henüz tanımlı değilse oluştur
-    window.PDFViewerApplicationOptions =
-      window.PDFViewerApplicationOptions || {
-        opts: {},
-        get: (key) => window.PDFViewerApplicationOptions.opts[key],
-        set: (key, value) =>
-          (window.PDFViewerApplicationOptions.opts[key] = value),
+      // Eğer PDFViewerApplicationOptions tanımlı değilse oluştur
+      window.PDFViewerApplicationOptions =
+        window.PDFViewerApplicationOptions || {
+          opts: {},
+          get: (key) => window.PDFViewerApplicationOptions.opts[key],
+          set: (key, value) =>
+            (window.PDFViewerApplicationOptions.opts[key] = value),
+        };
+
+      // PDF.js uygulaması hazır olduğunda locale ayarla
+      const setLocale = () => {
+        if (window.PDFViewerApplication && window.PDFViewerApplication.l10n) {
+          window.PDFViewerApplicationOptions.set("locale", lang);
+          console.log("🌍 Locale set to:", lang);
+        } else {
+          // Henüz hazır değilse tekrar dene
+          setTimeout(setLocale, 100);
+        }
       };
 
-    // Locale'i PDF.js'e aktar
-    window.PDFViewerApplicationOptions.set('locale', lang);
-    console.log("🌐 PDF.js locale set to:", lang);
+      setLocale();
+    });
   </script>
 
   <!-- Stil -->
