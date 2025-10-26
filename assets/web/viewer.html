@@ -22,18 +22,26 @@ See https://github.com/adobe-type-tools/cmap-resources
 -->
 <html dir="ltr" mozdisallowselectionprint>
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <meta name="google" content="notranslate">
-    <title>PDF.js viewer</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="google" content="notranslate">
+  <title>PDF.js viewer</title>
 
-<!-- This snippet is used in production (included from viewer.html) -->
-<link rel="resource" type="application/l10n" href="locale/locale.json">
-<script src="../build/pdf.mjs" type="module"></script>
+  <!-- 🌍 Çoklu dil desteği -->
+  <link rel="resource" type="application/l10n" href="locale/locale.json">
 
-    <script type="module" src="file:///android_asset/flutter_assets/assets/web/viewer.mjs"></script>
-<link rel="stylesheet" href="file:///android_asset/flutter_assets/assets/web/viewer.css">
-  </head>
+  <!-- 🧩 PDF.js çekirdeği -->
+  <script type="module">
+    import * as pdfjsLib from '../build/pdf.mjs';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '../build/pdf.worker.mjs';
+  </script>
+
+  <!-- 📄 Görüntüleyici (viewer) -->
+  <script type="module" src="viewer.mjs"></script>
+
+  <!-- 🎨 Stil dosyası -->
+  <link rel="stylesheet" href="viewer.css">
+</head>
 
   <body tabindex="0">
     <div id="outerContainer">
