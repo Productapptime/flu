@@ -452,6 +452,26 @@
   .dark-mode #toolbar #pdfName {
     color: #fff;
   }
+
+
+/* --- Flutter WebView düzeltmeleri --- */
+html, body {
+  -webkit-text-size-adjust: 100%;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  font-smooth: always;
+}
+
+#appContainer {
+  max-width: 100vw;
+  max-height: 100vh;
+  overflow: hidden;
+}
+
+button, .material-icons {
+  -webkit-tap-highlight-color: transparent;
+}
+  
 </style>
 </head>
 <body>
