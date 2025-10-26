@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const PDFApp());
 }
 
@@ -26,48 +27,46 @@ class PDFHome extends StatefulWidget {
 }
 
 class _PDFHomeState extends State<PDFHome> {
-  late final WebViewController _controller;
-  bool _isLoaded = false;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.transparent)
-      ..enableZoom(false) // 🔹 Zoom’u kapatıyoruz (CSS bozulmasın)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageFinished: (_) {
-            setState(() => _isLoaded = true);
-          },
-        ),
-      )
-      ..loadFlutterAsset('assets/web/index.html');
-  }
+  InAppWebViewController? webViewController;
+  bool isLoaded = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text(
-          'PDF Manager + PDF.js',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        centerTitle: true,
+        title: const Text('PDF Manager + PDF.js'),
         backgroundColor: Colors.red,
+        centerTitle: true,
       ),
       body: Stack(
         children: [
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            color: Colors.white,
-            child: WebViewWidget(controller: _controller),
+          InAppWebView(
+            initialFile: "assets/web/index.html",
+            initialSettings: InAppWebViewSettings(
+              javaScriptEnabled: true,
+              allowFileAccessFromFileURLs: true,
+              allowUniversalAccessFromFileURLs: true,
+              allowFileAccess: true,
+              useOnDownloadStart: true,
+              mediaPlaybackRequiresUserGesture: false,
+              transparentBackground: true,
+            ),
+            onWebViewCreated: (controller) {
+              webViewController = controller;
+            },
+            onLoadStop: (controller, url) {
+              setState(() => isLoaded = true);
+            },
+            onConsoleMessage: (controller, message) {
+              debugPrint("WEBVIEW LOG: ${message.message}");
+            },
+            androidOnShowFileChooser:
+                (controller, fileChooserParams) async {
+              // ✅ Bu kısım input[type=file] için dosya seçici açar
+              return null; // Android'in kendi picker'ını açar
+            },
           ),
-          if (!_isLoaded)
+          if (!isLoaded)
             const Center(
               child: CircularProgressIndicator(color: Colors.red),
             ),
