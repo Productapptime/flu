@@ -777,5 +777,10 @@ See https://github.com/adobe-type-tools/cmap-resources
 
     </div> <!-- outerContainer -->
     <div id="printContainer"></div>
+      <script>
+  const urlParams = new URLSearchParams(window.location.search);
+  const lang = urlParams.get('locale') || 'en-US';
+  window.PDFViewerApplicationOptions.set('locale', lang);
+</script>
   </body>
 </html>
