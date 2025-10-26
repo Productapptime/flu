@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -39,7 +40,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
-      allowMultiple: false,
     );
 
     if (result != null && result.files.single.path != null) {
@@ -49,7 +49,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
   }
 
   void _openPdf(File file) async {
-    // 📄 PDF sayfası kapanınca yeni dosya dönebilir
     final newFile = await Navigator.push<File?>(
       context,
       MaterialPageRoute(
@@ -60,7 +59,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
       ),
     );
 
-    // 📥 Yeni kaydedilen dosya varsa listeye ekle
     if (newFile != null && newFile.existsSync()) {
       setState(() => _pdfFiles.add(newFile));
     }
@@ -119,7 +117,7 @@ class PDFViewerPage extends StatefulWidget {
 class _PDFViewerPageState extends State<PDFViewerPage> {
   InAppWebViewController? _controller;
   bool _isLoaded = false;
-  File? _savedFile; // 👈 Kaydedilen dosyayı burada tutacağız
+  File? _savedFile;
 
   @override
   Widget build(BuildContext context) {
@@ -129,7 +127,6 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
 
     return WillPopScope(
       onWillPop: () async {
-        // 📤 Geri dönülürken yeni kaydedilen dosyayı geri gönder
         Navigator.pop(context, _savedFile);
         return false;
       },
@@ -153,34 +150,38 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
               onWebViewCreated: (controller) {
                 _controller = controller;
 
-                // 📡 HTML tarafından "kaydet" sinyali geldiğinde
+                // 📡 Flutter’a PDF verisi geldiğinde kaydet
                 _controller!.addJavaScriptHandler(
                   handlerName: "onPdfSaved",
                   callback: (args) async {
-                    final originalName =
-                        args.isNotEmpty ? args[0] : widget.fileName;
-                    final savedName = "kaydedilmis_$originalName";
+                    final originalName = args.isNotEmpty ? args[0] : widget.fileName;
+                    final base64Data = args.length > 1 ? args[1] : null;
+
                     final dir = File(widget.filePath).parent.path;
+                    final savedName = "kaydedilmis_$originalName";
                     final newPath = "$dir/$savedName";
 
-                    final sourceFile = File(widget.filePath);
-                    final savedFile = await sourceFile.copy(newPath);
-
-                    _savedFile = savedFile; // ✅ döndürülecek dosya
+                    // Eğer viewer.html base64 veri gönderdiyse dosyayı gerçekten kaydet
+                    if (base64Data != null && base64Data.isNotEmpty) {
+                      final bytes = base64Decode(base64Data);
+                      final savedFile = await File(newPath).writeAsBytes(bytes);
+                      _savedFile = savedFile;
+                    } else {
+                      // fallback: sadece kopya oluştur
+                      _savedFile = await File(widget.filePath).copy(newPath);
+                    }
 
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text("Kaydedildi: ${savedFile.path.split('/').last}"),
+                          content: Text("Kaydedildi: ${_savedFile!.path.split('/').last}"),
                         ),
                       );
                     }
                   },
                 );
               },
-              onLoadStop: (controller, url) {
-                setState(() => _isLoaded = true);
-              },
+              onLoadStop: (controller, url) => setState(() => _isLoaded = true),
               onConsoleMessage: (controller, message) {
                 debugPrint('WEBVIEW LOG: ${message.message}');
               },
