@@ -116,10 +116,7 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
 
   @override
   Widget build(BuildContext context) {
-    // PDF dosyasının tam URI'sini oluştur
     final pdfUri = Uri.file(widget.filePath).toString();
-
-    // Orijinal viewer.html kullanılıyor
     final htmlPath =
         'file:///android_asset/flutter_assets/assets/web/viewer.html?file=$pdfUri';
 
@@ -140,7 +137,30 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
               supportZoom: true,
               useHybridComposition: true,
             ),
-            onWebViewCreated: (controller) => _controller = controller,
+            onWebViewCreated: (controller) {
+              _controller = controller;
+
+              // 🔥 viewer.html'den kaydet sinyali geldiğinde dinle
+              _controller!.addJavaScriptHandler(
+                handlerName: "onPdfSaved",
+                callback: (args) async {
+                  final originalName =
+                      args.isNotEmpty ? args[0] : widget.fileName;
+                  final savedName = "kaydedilmis_$originalName";
+                  final dir = File(widget.filePath).parent.path;
+                  final newPath = "$dir/$savedName";
+
+                  final sourceFile = File(widget.filePath);
+                  await sourceFile.copy(newPath);
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Kaydedildi: $savedName")),
+                    );
+                  }
+                },
+              );
+            },
             onLoadStop: (controller, url) {
               setState(() => _isLoaded = true);
             },
