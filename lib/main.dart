@@ -41,7 +41,10 @@ class _PDFHomeState extends State<PDFHome> {
       body: Stack(
         children: [
           InAppWebView(
+            // 📂 Uygulama içindeki index.html dosyasını açar
             initialFile: "assets/web/index.html",
+
+            // ⚙️ WebView ayarları
             initialSettings: InAppWebViewSettings(
               javaScriptEnabled: true,
               allowFileAccess: true,
@@ -49,22 +52,27 @@ class _PDFHomeState extends State<PDFHome> {
               allowUniversalAccessFromFileURLs: true,
               mediaPlaybackRequiresUserGesture: false,
               transparentBackground: true,
+              supportZoom: false,
+              useHybridComposition: true,
             ),
+
+            // 📡 WebView oluşturulduğunda
             onWebViewCreated: (controller) {
               webViewController = controller;
             },
+
+            // 🌐 Sayfa yüklemesi tamamlandığında
             onLoadStop: (controller, url) {
               setState(() => isLoaded = true);
             },
+
+            // 🪵 Konsol loglarını dinle (hata ayıklama için)
             onConsoleMessage: (controller, message) {
               debugPrint("WEBVIEW LOG: ${message.message}");
             },
-
-            // ✅ Flutter 3.24 + 6.1.5 için doğru isim
-            androidOnShowFileChooser: (controller, params) async {
-              return null;
-            },
           ),
+
+          // ⏳ Yüklenme sürecinde gösterilecek dairesel indikatör
           if (!isLoaded)
             const Center(
               child: CircularProgressIndicator(color: Colors.red),
