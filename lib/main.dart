@@ -1,56 +1,66 @@
 import 'package:flutter/material.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 void main() {
-  print('HELLO FLUTTER');
-  runApp(const MyApp());
+  runApp(const PDFApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class PDFApp extends StatelessWidget {
+  const PDFApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'HELLO FLUTTER',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      home: const HomePage(),
+      title: 'PDF Manager + Viewer',
+      home: PDFHome(),
     );
   }
 }
 
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+class PDFHome extends StatefulWidget {
+  const PDFHome({super.key});
+
+  @override
+  State<PDFHome> createState() => _PDFHomeState();
+}
+
+class _PDFHomeState extends State<PDFHome> {
+  late final WebViewController _controller;
+  bool _isLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.white)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (_) {
+            setState(() => _isLoaded = true);
+          },
+        ),
+      )
+      ..loadFlutterAsset('assets/web/index.html');
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('HELLO FLUTTER'),
+        title: const Text('PDF Manager + PDF.js'),
+        backgroundColor: Colors.red,
         centerTitle: true,
       ),
-      body: const Center(
-        child: Text(
-          'HELLO FLUTTER 👋',
-          style: TextStyle(
-            fontSize: 30,
-            fontWeight: FontWeight.bold,
-            color: Colors.blueAccent,
-          ),
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          debugPrint('Button tapped — HELLO FLUTTER!');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('HELLO FLUTTER!')),
-          );
-        },
-        icon: const Icon(Icons.handshake),
-        label: const Text('Tap Me'),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _controller),
+          if (!_isLoaded)
+            const Center(
+              child: CircularProgressIndicator(color: Colors.red),
+            ),
+        ],
       ),
     );
   }
