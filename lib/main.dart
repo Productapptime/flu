@@ -60,9 +60,9 @@ class _PDFHomeState extends State<PDFHome> {
               debugPrint("WEBVIEW LOG: ${message.message}");
             },
 
-            // 👇 Yeni parametre ismi (6.1.5 için)
-            onShowFileChooser: (controller, params) async {
-              return null; // Android dosya seçici açılır
+            // ✅ Flutter 3.24 + 6.1.5 için doğru isim
+            androidOnShowFileChooser: (controller, params) async {
+              return null;
             },
           ),
           if (!isLoaded)
