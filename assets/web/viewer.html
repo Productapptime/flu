@@ -772,5 +772,34 @@ See https://github.com/adobe-type-tools/cmap-resources
 
     </div> <!-- outerContainer -->
     <div id="printContainer"></div>
+<!-- Burasi -->
+      
+<script>
+  function notifyFlutterSave(filename) {
+    if (window.flutter_inappwebview) {
+      window.flutter_inappwebview.callHandler("onPdfSaved", filename);
+    } else {
+      console.log("Flutter handler not found");
+    }
+  }
+
+  document.addEventListener("webviewerloaded", () => {
+    const tryAttach = () => {
+      const saveBtn = document.querySelector("#download") || document.querySelector("#secondaryDownload");
+      if (saveBtn) {
+        saveBtn.addEventListener("click", () => {
+          const currentName = window.PDFViewerApplication?.baseUrl?.split("/").pop() || "report.pdf";
+          notifyFlutterSave(currentName);
+        });
+      } else {
+        setTimeout(tryAttach, 1000); // tekrar dene
+      }
+    };
+    tryAttach();
+  });
+</script>
+
+    <!-- Burasi -->  
+      
   </body>
 </html>
