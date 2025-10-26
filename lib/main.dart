@@ -35,7 +35,7 @@ class PDFHomePage extends StatefulWidget {
 
 class _PDFHomePageState extends State<PDFHomePage> {
   final List<File> _pdfFiles = [];
-  String _selectedLocale = "en-US"; // 🔤 Varsayılan dil
+  String _selectedLocale = "en-US"; // 🌍 Varsayılan dil
 
   Future<void> _pickPdf() async {
     final result = await FilePicker.platform.pickFiles(
@@ -46,7 +46,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
 
     if (result != null && result.files.single.path != null) {
       final file = File(result.files.single.path!);
-      // Aynı dosya eklenmesin
       if (!_pdfFiles.any((f) => f.path == file.path)) {
         setState(() => _pdfFiles.add(file));
       }
@@ -60,7 +59,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
         builder: (_) => PDFViewerPage(
           filePath: file.path,
           fileName: file.path.split('/').last,
-          locale: _selectedLocale, // 🌍 Seçilen dili gönder
+          locale: _selectedLocale, // 🌍 seçilen dili gönder
         ),
       ),
     );
@@ -73,7 +72,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
         title: const Text('PDF Dosyalarım'),
         backgroundColor: Colors.red,
         actions: [
-          // 🌍 Dil seçimi menüsü
+          // 🌐 Dil seçimi menüsü
           PopupMenuButton<String>(
             icon: const Icon(Icons.language),
             onSelected: (lang) => setState(() => _selectedLocale = lang),
@@ -139,12 +138,14 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
 
   @override
   Widget build(BuildContext context) {
-    // PDF dosyasının URI'sini hazırla
+    // 📄 PDF dosyasının URI'sini hazırla
     final pdfUri = Uri.file(widget.filePath).toString();
 
-    // viewer.html dosyasını query param ile yükle
+    // 🌍 viewer.html dosyasına dili parametre olarak gönder
     final htmlPath =
-        'file:///android_asset/flutter_assets/assets/web/viewer.html?file=$pdfUri&locale=${widget.locale.toLowerCase()}';
+        'file:///android_asset/flutter_assets/assets/web/viewer.html'
+        '?file=$pdfUri'
+        '&locale=${widget.locale}'; // Burada PDF.js locale.json’daki anahtar birebir kullanılmalı
 
     return Scaffold(
       appBar: AppBar(
@@ -168,10 +169,10 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
               setState(() => _isLoaded = true);
             },
             onConsoleMessage: (controller, message) {
-              debugPrint('WEBVIEW LOG: ${message.message}');
+              debugPrint('🌐 WEBVIEW LOG: ${message.message}');
             },
             onLoadError: (controller, url, code, message) {
-              debugPrint('WEBVIEW ERROR ($code): $message');
+              debugPrint('❌ WEBVIEW ERROR ($code): $message');
             },
           ),
           if (!_isLoaded)
