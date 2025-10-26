@@ -12,7 +12,7 @@ class PDFApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'PDF Manager + Viewer',
+      title: 'PDF Manager + PDF.js',
       home: PDFHome(),
     );
   }
@@ -32,9 +32,11 @@ class _PDFHomeState extends State<PDFHome> {
   @override
   void initState() {
     super.initState();
+
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.white)
+      ..setBackgroundColor(Colors.transparent)
+      ..enableZoom(false) // 🔹 Zoom’u kapatıyoruz (CSS bozulmasın)
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) {
@@ -48,14 +50,23 @@ class _PDFHomeState extends State<PDFHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('PDF Manager + PDF.js'),
-        backgroundColor: Colors.red,
+        title: const Text(
+          'PDF Manager + PDF.js',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
         centerTitle: true,
+        backgroundColor: Colors.red,
       ),
       body: Stack(
         children: [
-          WebViewWidget(controller: _controller),
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            color: Colors.white,
+            child: WebViewWidget(controller: _controller),
+          ),
           if (!_isLoaded)
             const Center(
               child: CircularProgressIndicator(color: Colors.red),
