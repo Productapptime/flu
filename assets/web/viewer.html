@@ -37,12 +37,24 @@ See https://github.com/adobe-type-tools/cmap-resources
     import "./viewer.mjs";
   </script>
 
+  <!-- 🌍 Locale parametresi -->
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const lang = urlParams.get('locale') || 'en-US';
 
-      <script>
-  const urlParams = new URLSearchParams(window.location.search);
-  const lang = urlParams.get('locale') || 'en-us';
-  window.PDFViewerApplicationOptions.set('locale', lang);
-</script>
+    // Eğer PDFViewerApplicationOptions henüz tanımlı değilse oluştur
+    window.PDFViewerApplicationOptions =
+      window.PDFViewerApplicationOptions || {
+        opts: {},
+        get: (key) => window.PDFViewerApplicationOptions.opts[key],
+        set: (key, value) =>
+          (window.PDFViewerApplicationOptions.opts[key] = value),
+      };
+
+    // Locale'i PDF.js'e aktar
+    window.PDFViewerApplicationOptions.set('locale', lang);
+    console.log("🌐 PDF.js locale set to:", lang);
+  </script>
 
   <!-- Stil -->
   <link rel="stylesheet" href="viewer.css">
