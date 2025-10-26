@@ -18,4 +18,13 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/build/
+    - assets/build/pdf.mjs
+    - assets/build/pdf.worker.mjs
+    - assets/web/viewer.html
+    - assets/web/viewer.mjs
+    - assets/web/viewer.css
+    - assets/web/images/
+    - assets/web/locale/
     
