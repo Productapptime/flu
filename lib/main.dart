@@ -1,9 +1,10 @@
+// lib/main.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const PDFApp());
 }
@@ -13,10 +14,14 @@ class PDFApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
+      title: 'PDF Viewer (Gömülü)',
       debugShowCheckedModeBanner: false,
-      title: 'PDF Viewer (Embedded)',
-      home: PDFHomePage(),
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: Colors.red,
+      ),
+      home: const PDFHomePage(),
     );
   }
 }
@@ -29,20 +34,20 @@ class PDFHomePage extends StatefulWidget {
 }
 
 class _PDFHomePageState extends State<PDFHomePage> {
-  final List<File> pdfFiles = [];
+  final List<File> _pdfFiles = [];
 
-  Future<void> pickPDF() async {
+  Future<void> _pickPdf() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
     );
     if (result != null && result.files.single.path != null) {
       final file = File(result.files.single.path!);
-      setState(() => pdfFiles.add(file));
+      setState(() => _pdfFiles.add(file));
     }
   }
 
-  void openPDF(File file) {
+  void _openPdf(File file) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -55,23 +60,23 @@ class _PDFHomePageState extends State<PDFHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("PDF Dosyalarım"),
+        title: const Text('PDF Dosyalarım'),
         backgroundColor: Colors.red,
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: pickPDF,
+        onPressed: _pickPdf,
         child: const Icon(Icons.add),
       ),
-      body: pdfFiles.isEmpty
-          ? const Center(child: Text("Henüz PDF eklenmedi 📄"))
+      body: _pdfFiles.isEmpty
+          ? const Center(child: Text('Henüz PDF eklenmedi 📄'))
           : ListView.builder(
-              itemCount: pdfFiles.length,
+              itemCount: _pdfFiles.length,
               itemBuilder: (context, index) {
-                final file = pdfFiles[index];
+                final file = _pdfFiles[index];
                 return ListTile(
                   leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
                   title: Text(file.path.split('/').last),
-                  onTap: () => openPDF(file),
+                  onTap: () => _openPdf(file),
                 );
               },
             ),
@@ -88,14 +93,15 @@ class EmbeddedPDFViewer extends StatefulWidget {
 }
 
 class _EmbeddedPDFViewerState extends State<EmbeddedPDFViewer> {
-  InAppWebViewController? webViewController;
+  InAppWebViewController? _controller;
 
   @override
   Widget build(BuildContext context) {
     final pdfUri = Uri.file(widget.filePath).toString();
 
-    // 👇 Gömülü viewer.html içeriği (kısa örnek versiyonu)
-    final htmlData = """
+    // Gömülü viewer.html içeriği ↓
+    final embeddedHtml = """
+
 ﻿<!DOCTYPE html>
 <!--
 Copyright 2012 Mozilla Foundation
@@ -873,17 +879,18 @@ See https://github.com/adobe-type-tools/cmap-resources
   </body>
 </html>
 
+
 """;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("PDF Görüntüleyici"),
+        title: const Text('PDF Görüntüleyici'),
         backgroundColor: Colors.red,
       ),
       body: InAppWebView(
         initialData: InAppWebViewInitialData(
-          data: htmlData,
-          baseUrl: Uri.parse("file:///android_asset/flutter_assets/assets/web/"),
+          data: embeddedHtml,
+          baseUrl: WebUri("file:///android_asset/flutter_assets/assets/web/"),
           encoding: 'utf-8',
         ),
         initialSettings: InAppWebViewSettings(
@@ -891,8 +898,10 @@ See https://github.com/adobe-type-tools/cmap-resources
           allowFileAccess: true,
           allowFileAccessFromFileURLs: true,
           allowUniversalAccessFromFileURLs: true,
+          supportZoom: true,
+          useHybridComposition: true,
         ),
-        onWebViewCreated: (ctrl) => webViewController = ctrl,
+        onWebViewCreated: (ctrl) => _controller = ctrl,
       ),
     );
   }
