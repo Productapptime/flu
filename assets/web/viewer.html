@@ -21,55 +21,20 @@ Adobe CMap resources are covered by their own copyright but the same license:
 See https://github.com/adobe-type-tools/cmap-resources
 -->
 <html dir="ltr" mozdisallowselectionprint>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta name="google" content="notranslate">
-  <title>PDF.js viewer</title>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="google" content="notranslate">
+    <title>PDF.js viewer</title>
 
-  <!-- Çeviri -->
-  <link rel="resource" type="application/l10n" href="locale/locale.json">
+<!-- This snippet is used in production (included from viewer.html) -->
+<link rel="resource" type="application/l10n" href="locale/locale.json">
+<script src="../build/pdf.mjs" type="module"></script>
 
-  <!-- PDF.js modül bağlantısı -->
-  <script type="module">
-    import * as pdfjsLib from "../build/pdf.mjs";
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "../build/pdf.worker.mjs";
-    import "./viewer.mjs";
-  </script>
+    <link rel="stylesheet" href="viewer.css">
 
-  <!-- 🌍 Locale parametresi (geliştirilmiş versiyon) -->
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const lang = urlParams.get("locale") || "en-US";
-
-      // Eğer PDFViewerApplicationOptions tanımlı değilse oluştur
-      window.PDFViewerApplicationOptions =
-        window.PDFViewerApplicationOptions || {
-          opts: {},
-          get: (key) => window.PDFViewerApplicationOptions.opts[key],
-          set: (key, value) =>
-            (window.PDFViewerApplicationOptions.opts[key] = value),
-        };
-
-      // PDF.js uygulaması hazır olduğunda locale ayarla
-      const setLocale = () => {
-        if (window.PDFViewerApplication && window.PDFViewerApplication.l10n) {
-          window.PDFViewerApplicationOptions.set("locale", lang);
-          console.log("🌍 Locale set to:", lang);
-        } else {
-          // Henüz hazır değilse tekrar dene
-          setTimeout(setLocale, 100);
-        }
-      };
-
-      setLocale();
-    });
-  </script>
-
-  <!-- Stil -->
-  <link rel="stylesheet" href="viewer.css">
-</head>
+  <script src="viewer.mjs" type="module"></script>
+  </head>
 
   <body tabindex="0">
     <div id="outerContainer">
