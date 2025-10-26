@@ -18,13 +18,132 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
   assets:
-    - assets/build/
+    # PDF.js core dosyaları
     - assets/build/pdf.mjs
     - assets/build/pdf.worker.mjs
+
+    # PDF.js viewer dosyaları
     - assets/web/viewer.html
     - assets/web/viewer.mjs
     - assets/web/viewer.css
+
+    # Görseller
     - assets/web/images/
-    - assets/web/locale/
+
+    # Locale dosyaları (tek tek tanımlı)
+    - assets/web/locale/ach/viewer.ftl
+    - assets/web/locale/af/viewer.ftl
+    - assets/web/locale/an/viewer.ftl
+    - assets/web/locale/ar/viewer.ftl
+    - assets/web/locale/ast/viewer.ftl
+    - assets/web/locale/az/viewer.ftl
+    - assets/web/locale/be/viewer.ftl
+    - assets/web/locale/bg/viewer.ftl
+    - assets/web/locale/bn/viewer.ftl
+    - assets/web/locale/bo/viewer.ftl
+    - assets/web/locale/br/viewer.ftl
+    - assets/web/locale/brx/viewer.ftl
+    - assets/web/locale/bs/viewer.ftl
+    - assets/web/locale/ca/viewer.ftl
+    - assets/web/locale/cak/viewer.ftl
+    - assets/web/locale/ckb/viewer.ftl
+    - assets/web/locale/cs/viewer.ftl
+    - assets/web/locale/cy/viewer.ftl
+    - assets/web/locale/da/viewer.ftl
+    - assets/web/locale/de/viewer.ftl
+    - assets/web/locale/dsb/viewer.ftl
+    - assets/web/locale/el/viewer.ftl
+    - assets/web/locale/en-CA/viewer.ftl
+    - assets/web/locale/en-GB/viewer.ftl
+    - assets/web/locale/en-US/viewer.ftl
+    - assets/web/locale/eo/viewer.ftl
+    - assets/web/locale/es-AR/viewer.ftl
+    - assets/web/locale/es-CL/viewer.ftl
+    - assets/web/locale/es-ES/viewer.ftl
+    - assets/web/locale/es-MX/viewer.ftl
+    - assets/web/locale/et/viewer.ftl
+    - assets/web/locale/eu/viewer.ftl
+    - assets/web/locale/fa/viewer.ftl
+    - assets/web/locale/ff/viewer.ftl
+    - assets/web/locale/fi/viewer.ftl
+    - assets/web/locale/fr/viewer.ftl
+    - assets/web/locale/fur/viewer.ftl
+    - assets/web/locale/fy-NL/viewer.ftl
+    - assets/web/locale/ga-IE/viewer.ftl
+    - assets/web/locale/gd/viewer.ftl
+    - assets/web/locale/gl/viewer.ftl
+    - assets/web/locale/gn/viewer.ftl
+    - assets/web/locale/gu-IN/viewer.ftl
+    - assets/web/locale/he/viewer.ftl
+    - assets/web/locale/hi-IN/viewer.ftl
+    - assets/web/locale/hr/viewer.ftl
+    - assets/web/locale/hsb/viewer.ftl
+    - assets/web/locale/hu/viewer.ftl
+    - assets/web/locale/hy-AM/viewer.ftl
+    - assets/web/locale/hye/viewer.ftl
+    - assets/web/locale/ia/viewer.ftl
+    - assets/web/locale/id/viewer.ftl
+    - assets/web/locale/is/viewer.ftl
+    - assets/web/locale/it/viewer.ftl
+    - assets/web/locale/ja/viewer.ftl
+    - assets/web/locale/ka/viewer.ftl
+    - assets/web/locale/kab/viewer.ftl
+    - assets/web/locale/kk/viewer.ftl
+    - assets/web/locale/km/viewer.ftl
+    - assets/web/locale/kn/viewer.ftl
+    - assets/web/locale/ko/viewer.ftl
+    - assets/web/locale/lij/viewer.ftl
+    - assets/web/locale/lo/viewer.ftl
+    - assets/web/locale/lt/viewer.ftl
+    - assets/web/locale/ltg/viewer.ftl
+    - assets/web/locale/lv/viewer.ftl
+    - assets/web/locale/meh/viewer.ftl
+    - assets/web/locale/mk/viewer.ftl
+    - assets/web/locale/ml/viewer.ftl
+    - assets/web/locale/mr/viewer.ftl
+    - assets/web/locale/ms/viewer.ftl
+    - assets/web/locale/my/viewer.ftl
+    - assets/web/locale/nb-NO/viewer.ftl
+    - assets/web/locale/ne-NP/viewer.ftl
+    - assets/web/locale/nl/viewer.ftl
+    - assets/web/locale/nn-NO/viewer.ftl
+    - assets/web/locale/oc/viewer.ftl
+    - assets/web/locale/pa-IN/viewer.ftl
+    - assets/web/locale/pl/viewer.ftl
+    - assets/web/locale/pt-BR/viewer.ftl
+    - assets/web/locale/pt-PT/viewer.ftl
+    - assets/web/locale/rm/viewer.ftl
+    - assets/web/locale/ro/viewer.ftl
+    - assets/web/locale/ru/viewer.ftl
+    - assets/web/locale/sat/viewer.ftl
+    - assets/web/locale/sc/viewer.ftl
+    - assets/web/locale/scn/viewer.ftl
+    - assets/web/locale/sco/viewer.ftl
+    - assets/web/locale/si/viewer.ftl
+    - assets/web/locale/sk/viewer.ftl
+    - assets/web/locale/skr/viewer.ftl
+    - assets/web/locale/sl/viewer.ftl
+    - assets/web/locale/son/viewer.ftl
+    - assets/web/locale/sq/viewer.ftl
+    - assets/web/locale/sr/viewer.ftl
+    - assets/web/locale/sv-SE/viewer.ftl
+    - assets/web/locale/szl/viewer.ftl
+    - assets/web/locale/ta/viewer.ftl
+    - assets/web/locale/te/viewer.ftl
+    - assets/web/locale/tg/viewer.ftl
+    - assets/web/locale/th/viewer.ftl
+    - assets/web/locale/tl/viewer.ftl
+    - assets/web/locale/tr/viewer.ftl
+    - assets/web/locale/trs/viewer.ftl
+    - assets/web/locale/uk/viewer.ftl
+    - assets/web/locale/ur/viewer.ftl
+    - assets/web/locale/uz/viewer.ftl
+    - assets/web/locale/vi/viewer.ftl
+    - assets/web/locale/wo/viewer.ftl
+    - assets/web/locale/xh/viewer.ftl
+    - assets/web/locale/zh-CN/viewer.ftl
+    - assets/web/locale/zh-TW/viewer.ftl
+    - assets/web/locale/locale.json
     
