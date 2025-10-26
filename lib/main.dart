@@ -35,6 +35,7 @@ class PDFHomePage extends StatefulWidget {
 
 class _PDFHomePageState extends State<PDFHomePage> {
   final List<File> _pdfFiles = [];
+  String _selectedLocale = "en-US"; // 🔤 Varsayılan dil
 
   Future<void> _pickPdf() async {
     final result = await FilePicker.platform.pickFiles(
@@ -53,7 +54,11 @@ class _PDFHomePageState extends State<PDFHomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PDFViewerPage(filePath: file.path, fileName: file.path.split('/').last),
+        builder: (_) => PDFViewerPage(
+          filePath: file.path,
+          fileName: file.path.split('/').last,
+          locale: _selectedLocale, // 🌍 seçilen dili gönder
+        ),
       ),
     );
   }
@@ -65,6 +70,18 @@ class _PDFHomePageState extends State<PDFHomePage> {
         title: const Text('PDF Dosyalarım'),
         backgroundColor: Colors.red,
         actions: [
+          // 🌍 Dil seçimi menüsü
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.language),
+            onSelected: (lang) => setState(() => _selectedLocale = lang),
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'en-US', child: Text('English (US)')),
+              PopupMenuItem(value: 'tr', child: Text('Türkçe')),
+              PopupMenuItem(value: 'fr', child: Text('Français')),
+              PopupMenuItem(value: 'de', child: Text('Deutsch')),
+              PopupMenuItem(value: 'es-ES', child: Text('Español')),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: _pickPdf,
@@ -97,7 +114,14 @@ class _PDFHomePageState extends State<PDFHomePage> {
 class PDFViewerPage extends StatefulWidget {
   final String filePath;
   final String fileName;
-  const PDFViewerPage({super.key, required this.filePath, required this.fileName});
+  final String locale; // 🌍 dil parametresi
+
+  const PDFViewerPage({
+    super.key,
+    required this.filePath,
+    required this.fileName,
+    required this.locale,
+  });
 
   @override
   State<PDFViewerPage> createState() => _PDFViewerPageState();
@@ -113,9 +137,8 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
     final pdfUri = Uri.file(widget.filePath).toString();
 
     // viewer.html dosyasını query param ile yükle
-    // viewer.html içinden PDF.js viewer sistemi açılacak
     final htmlPath =
-        'file:///android_asset/flutter_assets/assets/web/viewer.html?file=$pdfUri';
+        'file:///android_asset/flutter_assets/assets/web/viewer.html?file=$pdfUri&locale=${widget.locale}';
 
     return Scaffold(
       appBar: AppBar(
