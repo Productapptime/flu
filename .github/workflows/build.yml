@@ -18,7 +18,16 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0' # Mevcut Flutter versiyonuna göre ayarla
+          flutter-version: '3.24.0'
+
+      # 🔧 Tüm assetleri pubspec.yaml'a otomatik ekle
+      - name: Auto include all assets
+        run: |
+          echo "🔍 Automatically adding all asset files to pubspec.yaml"
+          assets_list=$(find assets -type f | sed 's/^/    - /')
+          awk '/^flutter:/{print;print "  assets:";print assets_list;next}1' pubspec.yaml > pubspec_tmp.yaml
+          mv pubspec_tmp.yaml pubspec.yaml
+          cat pubspec.yaml | grep "assets" -A5 || true
 
       - name: Install dependencies
         run: flutter pub get
