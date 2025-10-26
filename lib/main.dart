@@ -1,3 +1,4 @@
+// lib/main.dart
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -6,16 +7,16 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const PDFApp());
+  runApp(const PDFManagerApp());
 }
 
-class PDFApp extends StatelessWidget {
-  const PDFApp({super.key});
+class PDFManagerApp extends StatelessWidget {
+  const PDFManagerApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PDF Viewer',
+      title: "PDF Manager",
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -35,27 +36,28 @@ class PDFHomePage extends StatefulWidget {
 
 class _PDFHomePageState extends State<PDFHomePage> {
   final List<File> _pdfFiles = [];
+  bool _darkMode = false;
+  int _selectedIndex = 0;
+  File? _savedFile;
 
+  // 🔹 PDF ekleme
   Future<void> _pickPdf() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
     );
-
     if (result != null && result.files.single.path != null) {
       final file = File(result.files.single.path!);
       setState(() => _pdfFiles.add(file));
     }
   }
 
+  // 🔹 PDF aç
   void _openPdf(File file) async {
     final newFile = await Navigator.push<File?>(
       context,
       MaterialPageRoute(
-        builder: (_) => PDFViewerPage(
-          filePath: file.path,
-          fileName: file.path.split('/').last,
-        ),
+        builder: (_) => PDFViewerPage(filePath: file.path, fileName: file.path.split('/').last),
       ),
     );
 
@@ -64,51 +66,143 @@ class _PDFHomePageState extends State<PDFHomePage> {
     }
   }
 
+  // 🔹 Drawer menüsü
+  void _openDrawer() {
+    Scaffold.of(context).openDrawer();
+  }
+
+  // 🔹 Tema değiştirme
+  void _toggleDarkMode() {
+    setState(() => _darkMode = !_darkMode);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = _darkMode;
+    final Color bg = isDark ? Colors.black : Colors.white;
+    final Color text = isDark ? Colors.white : Colors.black;
+
     return Scaffold(
+      backgroundColor: bg,
+      drawer: Drawer(
+        backgroundColor: bg,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(color: isDark ? Colors.red.shade900 : Colors.red.shade100),
+              child: Text(
+                "📂 PDF Reader & Manager",
+                style: TextStyle(color: text, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cloud_upload, color: Colors.red),
+              title: Text("Import PDF", style: TextStyle(color: text)),
+              onTap: () {
+                Navigator.pop(context);
+                _pickPdf();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.dark_mode, color: Colors.red),
+              title: Text(isDark ? "Light Mode" : "Dark Mode", style: TextStyle(color: text)),
+              onTap: () {
+                _toggleDarkMode();
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.language, color: Colors.red),
+              title: Text("Language", style: TextStyle(color: text)),
+              onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Dil değiştirme henüz aktif değil.")),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.policy, color: Colors.red),
+              title: Text("Policy", style: TextStyle(color: text)),
+              onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Policy sayfası yakında.")),
+              ),
+            ),
+          ],
+        ),
+      ),
       appBar: AppBar(
-        title: const Text('PDF Dosyalarım'),
-        backgroundColor: Colors.red,
+        backgroundColor: isDark ? Colors.red.shade900 : Colors.red,
+        title: Text(
+          ["All Files", "Recent", "Favorites", "Tools"][_selectedIndex],
+          style: const TextStyle(color: Colors.white),
+        ),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white),
+            onPressed: _openDrawer,
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add, color: Colors.white),
             onPressed: _pickPdf,
           ),
         ],
       ),
-      body: _pdfFiles.isEmpty
-          ? const Center(child: Text('Henüz PDF eklenmedi 📄'))
-          : ListView.builder(
-              itemCount: _pdfFiles.length,
-              itemBuilder: (context, index) {
-                final f = _pdfFiles[index];
-                return ListTile(
-                  leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-                  title: Text(f.path.split('/').last),
-                  onTap: () => _openPdf(f),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () {
-                      setState(() => _pdfFiles.removeAt(index));
-                    },
+      body: _selectedIndex == 0
+          ? (_pdfFiles.isEmpty
+              ? Center(
+                  child: Text(
+                    "Henüz PDF eklenmedi 📄",
+                    style: TextStyle(color: text.withOpacity(0.7)),
                   ),
-                );
-              },
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(8),
+                  itemCount: _pdfFiles.length,
+                  itemBuilder: (context, i) {
+                    final f = _pdfFiles[i];
+                    return Card(
+                      color: isDark ? Colors.grey.shade900 : Colors.white,
+                      child: ListTile(
+                        leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                        title: Text(f.path.split('/').last, style: TextStyle(color: text)),
+                        onTap: () => _openPdf(f),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline, color: Colors.red),
+                          onPressed: () => setState(() => _pdfFiles.removeAt(i)),
+                        ),
+                      ),
+                    );
+                  },
+                ))
+          : Center(
+              child: Text(
+                "Bu sekme henüz aktif değil",
+                style: TextStyle(color: text.withOpacity(0.7)),
+              ),
             ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (i) => setState(() => _selectedIndex = i),
+        backgroundColor: bg,
+        selectedItemColor: Colors.red,
+        unselectedItemColor: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.folder), label: "All Files"),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: "Recent"),
+          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: "Favorites"),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: "Tools"),
+        ],
+      ),
     );
   }
 }
 
+// 🧩 PDF VIEWER SAYFASI
 class PDFViewerPage extends StatefulWidget {
   final String filePath;
   final String fileName;
-
-  const PDFViewerPage({
-    super.key,
-    required this.filePath,
-    required this.fileName,
-  });
+  const PDFViewerPage({super.key, required this.filePath, required this.fileName});
 
   @override
   State<PDFViewerPage> createState() => _PDFViewerPageState();
@@ -122,8 +216,7 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
   @override
   Widget build(BuildContext context) {
     final pdfUri = Uri.file(widget.filePath).toString();
-    final htmlPath =
-        'file:///android_asset/flutter_assets/assets/web/viewer.html?file=$pdfUri';
+    final htmlPath = 'file:///android_asset/flutter_assets/assets/web/viewer.html?file=$pdfUri';
 
     return WillPopScope(
       onWillPop: () async {
@@ -132,8 +225,12 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.fileName),
           backgroundColor: Colors.red,
+          title: Text(widget.fileName, style: const TextStyle(color: Colors.white)),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context, _savedFile),
+          ),
         ),
         body: Stack(
           children: [
@@ -149,25 +246,19 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
               ),
               onWebViewCreated: (controller) {
                 _controller = controller;
-
-                // 📡 Flutter’a PDF verisi geldiğinde kaydet
                 _controller!.addJavaScriptHandler(
                   handlerName: "onPdfSaved",
                   callback: (args) async {
                     final originalName = args.isNotEmpty ? args[0] : widget.fileName;
                     final base64Data = args.length > 1 ? args[1] : null;
-
                     final dir = File(widget.filePath).parent.path;
-                    final savedName = "kaydedilmis_$originalName";
-                    final newPath = "$dir/$savedName";
+                    final newPath = "$dir/kaydedilmis_$originalName";
 
-                    // Eğer viewer.html base64 veri gönderdiyse dosyayı gerçekten kaydet
                     if (base64Data != null && base64Data.isNotEmpty) {
                       final bytes = base64Decode(base64Data);
                       final savedFile = await File(newPath).writeAsBytes(bytes);
                       _savedFile = savedFile;
                     } else {
-                      // fallback: sadece kopya oluştur
                       _savedFile = await File(widget.filePath).copy(newPath);
                     }
 
@@ -181,13 +272,7 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
                   },
                 );
               },
-              onLoadStop: (controller, url) => setState(() => _isLoaded = true),
-              onConsoleMessage: (controller, message) {
-                debugPrint('WEBVIEW LOG: ${message.message}');
-              },
-              onLoadError: (controller, url, code, message) {
-                debugPrint('WEBVIEW ERROR ($code): $message');
-              },
+              onLoadStop: (c, _) => setState(() => _isLoaded = true),
             ),
             if (!_isLoaded)
               const Center(child: CircularProgressIndicator(color: Colors.red)),
