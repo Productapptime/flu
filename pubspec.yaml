@@ -19,7 +19,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/build/
-    - assets/web/
-    - assets/web/images/
-    - assets/web/locale/
+    
