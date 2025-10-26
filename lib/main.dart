@@ -1,83 +1,117 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const PDFApp());
+  runApp(const PDFViewerApp());
 }
 
-class PDFApp extends StatelessWidget {
-  const PDFApp({super.key});
+class PDFViewerApp extends StatelessWidget {
+  const PDFViewerApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
+      title: "Basit PDF Görüntüleyici",
       debugShowCheckedModeBanner: false,
-      title: 'PDF Manager + PDF.js',
-      home: PDFHome(),
+      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.red),
+      home: const PDFHomePage(),
     );
   }
 }
 
-class PDFHome extends StatefulWidget {
-  const PDFHome({super.key});
+class PDFHomePage extends StatefulWidget {
+  const PDFHomePage({super.key});
 
   @override
-  State<PDFHome> createState() => _PDFHomeState();
+  State<PDFHomePage> createState() => _PDFHomePageState();
 }
 
-class _PDFHomeState extends State<PDFHome> {
-  InAppWebViewController? webViewController;
-  bool isLoaded = false;
+class _PDFHomePageState extends State<PDFHomePage> {
+  final List<File> pdfFiles = [];
+
+  Future<void> pickPDF() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+    if (result != null && result.files.single.path != null) {
+      final file = File(result.files.single.path!);
+      setState(() => pdfFiles.add(file));
+    }
+  }
+
+  void openPDF(File file) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PDFWebViewer(filePath: file.path),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('PDF Manager + PDF.js'),
+        title: const Text("PDF Dosyalarım"),
         backgroundColor: Colors.red,
-        centerTitle: true,
       ),
-      body: Stack(
-        children: [
-          InAppWebView(
-            // 📂 Uygulama içindeki index.html dosyasını açar
-            initialFile: "assets/web/index.html",
-
-            // ⚙️ WebView ayarları
-            initialSettings: InAppWebViewSettings(
-              javaScriptEnabled: true,
-              allowFileAccess: true,
-              allowFileAccessFromFileURLs: true,
-              allowUniversalAccessFromFileURLs: true,
-              mediaPlaybackRequiresUserGesture: false,
-              transparentBackground: true,
-              supportZoom: false,
-              useHybridComposition: true,
+      floatingActionButton: FloatingActionButton(
+        onPressed: pickPDF,
+        child: const Icon(Icons.file_upload),
+      ),
+      body: pdfFiles.isEmpty
+          ? const Center(
+              child: Text("Henüz PDF eklenmedi 📄"),
+            )
+          : ListView.builder(
+              itemCount: pdfFiles.length,
+              itemBuilder: (context, index) {
+                final file = pdfFiles[index];
+                return ListTile(
+                  leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                  title: Text(file.path.split('/').last),
+                  onTap: () => openPDF(file),
+                );
+              },
             ),
+    );
+  }
+}
 
-            // 📡 WebView oluşturulduğunda
-            onWebViewCreated: (controller) {
-              webViewController = controller;
-            },
+class PDFWebViewer extends StatefulWidget {
+  final String filePath;
+  const PDFWebViewer({super.key, required this.filePath});
 
-            // 🌐 Sayfa yüklemesi tamamlandığında
-            onLoadStop: (controller, url) {
-              setState(() => isLoaded = true);
-            },
+  @override
+  State<PDFWebViewer> createState() => _PDFWebViewerState();
+}
 
-            // 🪵 Konsol loglarını dinle (hata ayıklama için)
-            onConsoleMessage: (controller, message) {
-              debugPrint("WEBVIEW LOG: ${message.message}");
-            },
-          ),
+class _PDFWebViewerState extends State<PDFWebViewer> {
+  InAppWebViewController? controller;
 
-          // ⏳ Yüklenme sürecinde gösterilecek dairesel indikatör
-          if (!isLoaded)
-            const Center(
-              child: CircularProgressIndicator(color: Colors.red),
-            ),
-        ],
+  @override
+  Widget build(BuildContext context) {
+    final pdfUri = Uri.file(widget.filePath).toString();
+    final viewerPath = "assets/web/viewer.html?file=$pdfUri";
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("PDF Görüntüleyici"),
+        backgroundColor: Colors.red,
+      ),
+      body: InAppWebView(
+        initialFile: viewerPath,
+        initialSettings: InAppWebViewSettings(
+          javaScriptEnabled: true,
+          allowFileAccess: true,
+          allowFileAccessFromFileURLs: true,
+          allowUniversalAccessFromFileURLs: true,
+        ),
+        onWebViewCreated: (ctrl) => controller = ctrl,
       ),
     );
   }
