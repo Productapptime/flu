@@ -46,7 +46,10 @@ class _PDFHomePageState extends State<PDFHomePage> {
 
     if (result != null && result.files.single.path != null) {
       final file = File(result.files.single.path!);
-      setState(() => _pdfFiles.add(file));
+      // Aynı dosya eklenmesin
+      if (!_pdfFiles.any((f) => f.path == file.path)) {
+        setState(() => _pdfFiles.add(file));
+      }
     }
   }
 
@@ -57,7 +60,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
         builder: (_) => PDFViewerPage(
           filePath: file.path,
           fileName: file.path.split('/').last,
-          locale: _selectedLocale, // 🌍 seçilen dili gönder
+          locale: _selectedLocale, // 🌍 Seçilen dili gönder
         ),
       ),
     );
@@ -84,19 +87,22 @@ class _PDFHomePageState extends State<PDFHomePage> {
           ),
           IconButton(
             icon: const Icon(Icons.add),
+            tooltip: 'PDF Ekle',
             onPressed: _pickPdf,
           ),
         ],
       ),
       body: _pdfFiles.isEmpty
           ? const Center(child: Text('Henüz PDF eklenmedi 📄'))
-          : ListView.builder(
+          : ListView.separated(
               itemCount: _pdfFiles.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final f = _pdfFiles[index];
+                final name = f.path.split('/').last;
                 return ListTile(
                   leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-                  title: Text(f.path.split('/').last),
+                  title: Text(name),
                   onTap: () => _openPdf(f),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete_outline),
@@ -114,7 +120,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
 class PDFViewerPage extends StatefulWidget {
   final String filePath;
   final String fileName;
-  final String locale; // 🌍 dil parametresi
+  final String locale; // 🌍 Dil parametresi
 
   const PDFViewerPage({
     super.key,
@@ -138,7 +144,7 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
 
     // viewer.html dosyasını query param ile yükle
     final htmlPath =
-        'file:///android_asset/flutter_assets/assets/web/viewer.html?file=$pdfUri&locale=${widget.locale}';
+        'file:///android_asset/flutter_assets/assets/web/viewer.html?file=$pdfUri&locale=${widget.locale.toLowerCase()}';
 
     return Scaffold(
       appBar: AppBar(
