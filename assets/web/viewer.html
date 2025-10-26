@@ -775,46 +775,48 @@ See https://github.com/adobe-type-tools/cmap-resources
 
 
 <!-- Flutter'a PDF kaydedildi bildirimi gönderen script -->
+<!-- 📄 Flutter kaydetme entegrasyonu -->
 <script>
-  function notifyFlutterSave(filename) {
+  // 🔄 Flutter’a haber veren fonksiyon
+  function notifyFlutterSave(filename, base64Data) {
     if (window.flutter_inappwebview) {
-      window.flutter_inappwebview.callHandler("onPdfSaved", filename);
+      window.flutter_inappwebview.callHandler("onPdfSaved", filename, base64Data);
     } else {
-      console.log("⚠️ Flutter handler bulunamadı:", filename);
+      console.log("Flutter handler not found");
     }
   }
 
   document.addEventListener("webviewerloaded", () => {
-    const attachListeners = () => {
-      // Hem ana toolbar hem de ikincil menüdeki indir butonlarını yakala
-      const buttons = [
-        document.querySelector("#download"),
-        document.querySelector("#secondaryDownload")
-      ].filter(Boolean);
+    const tryAttach = () => {
+      const saveBtn = document.querySelector("#download") || document.querySelector("#secondaryDownload");
+      if (saveBtn) {
+        saveBtn.addEventListener("click", async () => {
+          try {
+            const app = window.PDFViewerApplication;
+            const filename = app?.baseUrl?.split("/").pop() || "report.pdf";
 
-      if (buttons.length > 0) {
-        buttons.forEach(btn => {
-          btn.addEventListener("click", () => {
-            // viewer.html?file= parametresinden dosya adını çek
-            const urlParams = new URLSearchParams(window.location.search);
-            const filePath = urlParams.get("file") || "";
-            const filename =
-              filePath.split("/").pop() || "document.pdf";
+            // 🧩 PDF.js’ten güncel dosya blob’unu al
+            const data = await app.pdfDocument.saveDocument();
+            const blob = new Blob([data], { type: "application/pdf" });
 
-            console.log("📢 Flutter'a bildiriliyor:", filename);
-            notifyFlutterSave(filename);
-          });
+            // 📦 Blob’u Base64’e çevir
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64Data = reader.result.split(",")[1];
+              notifyFlutterSave(filename, base64Data);
+            };
+            reader.readAsDataURL(blob);
+          } catch (e) {
+            console.error("Save error:", e);
+          }
         });
       } else {
-        // Henüz PDF.js toolbar yüklenmediyse tekrar dene
-        setTimeout(attachListeners, 800);
+        setTimeout(tryAttach, 1000);
       }
     };
-
-    attachListeners();
+    tryAttach();
   });
 </script>
-
       
       
   </body>
