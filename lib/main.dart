@@ -48,8 +48,9 @@ class _PDFHomePageState extends State<PDFHomePage> {
     }
   }
 
-  void _openPdf(File file) {
-    Navigator.push(
+  void _openPdf(File file) async {
+    // 📄 PDF sayfası kapanınca yeni dosya dönebilir
+    final newFile = await Navigator.push<File?>(
       context,
       MaterialPageRoute(
         builder: (_) => PDFViewerPage(
@@ -58,6 +59,11 @@ class _PDFHomePageState extends State<PDFHomePage> {
         ),
       ),
     );
+
+    // 📥 Yeni kaydedilen dosya varsa listeye ekle
+    if (newFile != null && newFile.existsSync()) {
+      setState(() => _pdfFiles.add(newFile));
+    }
   }
 
   @override
@@ -113,6 +119,7 @@ class PDFViewerPage extends StatefulWidget {
 class _PDFViewerPageState extends State<PDFViewerPage> {
   InAppWebViewController? _controller;
   bool _isLoaded = false;
+  File? _savedFile; // 👈 Kaydedilen dosyayı burada tutacağız
 
   @override
   Widget build(BuildContext context) {
@@ -120,60 +127,71 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
     final htmlPath =
         'file:///android_asset/flutter_assets/assets/web/viewer.html?file=$pdfUri';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.fileName),
-        backgroundColor: Colors.red,
-      ),
-      body: Stack(
-        children: [
-          InAppWebView(
-            initialUrlRequest: URLRequest(url: WebUri(htmlPath)),
-            initialSettings: InAppWebViewSettings(
-              javaScriptEnabled: true,
-              allowFileAccess: true,
-              allowFileAccessFromFileURLs: true,
-              allowUniversalAccessFromFileURLs: true,
-              supportZoom: true,
-              useHybridComposition: true,
+    return WillPopScope(
+      onWillPop: () async {
+        // 📤 Geri dönülürken yeni kaydedilen dosyayı geri gönder
+        Navigator.pop(context, _savedFile);
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.fileName),
+          backgroundColor: Colors.red,
+        ),
+        body: Stack(
+          children: [
+            InAppWebView(
+              initialUrlRequest: URLRequest(url: WebUri(htmlPath)),
+              initialSettings: InAppWebViewSettings(
+                javaScriptEnabled: true,
+                allowFileAccess: true,
+                allowFileAccessFromFileURLs: true,
+                allowUniversalAccessFromFileURLs: true,
+                supportZoom: true,
+                useHybridComposition: true,
+              ),
+              onWebViewCreated: (controller) {
+                _controller = controller;
+
+                // 📡 HTML tarafından "kaydet" sinyali geldiğinde
+                _controller!.addJavaScriptHandler(
+                  handlerName: "onPdfSaved",
+                  callback: (args) async {
+                    final originalName =
+                        args.isNotEmpty ? args[0] : widget.fileName;
+                    final savedName = "kaydedilmis_$originalName";
+                    final dir = File(widget.filePath).parent.path;
+                    final newPath = "$dir/$savedName";
+
+                    final sourceFile = File(widget.filePath);
+                    final savedFile = await sourceFile.copy(newPath);
+
+                    _savedFile = savedFile; // ✅ döndürülecek dosya
+
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Kaydedildi: ${savedFile.path.split('/').last}"),
+                        ),
+                      );
+                    }
+                  },
+                );
+              },
+              onLoadStop: (controller, url) {
+                setState(() => _isLoaded = true);
+              },
+              onConsoleMessage: (controller, message) {
+                debugPrint('WEBVIEW LOG: ${message.message}');
+              },
+              onLoadError: (controller, url, code, message) {
+                debugPrint('WEBVIEW ERROR ($code): $message');
+              },
             ),
-            onWebViewCreated: (controller) {
-              _controller = controller;
-
-              // 🔥 viewer.html'den kaydet sinyali geldiğinde dinle
-              _controller!.addJavaScriptHandler(
-                handlerName: "onPdfSaved",
-                callback: (args) async {
-                  final originalName =
-                      args.isNotEmpty ? args[0] : widget.fileName;
-                  final savedName = "kaydedilmis_$originalName";
-                  final dir = File(widget.filePath).parent.path;
-                  final newPath = "$dir/$savedName";
-
-                  final sourceFile = File(widget.filePath);
-                  await sourceFile.copy(newPath);
-
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("Kaydedildi: $savedName")),
-                    );
-                  }
-                },
-              );
-            },
-            onLoadStop: (controller, url) {
-              setState(() => _isLoaded = true);
-            },
-            onConsoleMessage: (controller, message) {
-              debugPrint('WEBVIEW LOG: ${message.message}');
-            },
-            onLoadError: (controller, url, code, message) {
-              debugPrint('WEBVIEW ERROR ($code): $message');
-            },
-          ),
-          if (!_isLoaded)
-            const Center(child: CircularProgressIndicator(color: Colors.red)),
-        ],
+            if (!_isLoaded)
+              const Center(child: CircularProgressIndicator(color: Colors.red)),
+          ],
+        ),
       ),
     );
   }
