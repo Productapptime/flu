@@ -1292,16 +1292,16 @@ class _PDFHomePageState extends State<PDFHomePage> {
 /* ----------------------
    Viewer Screen
 ---------------------- */
+
 class ViewerScreen extends StatefulWidget {
   final File file;
   final String fileName;
   final bool dark;
   final VoidCallback? onFileOpened;
-
   const ViewerScreen({
-    super.key,
-    required this.file,
-    required this.fileName,
+    super.key, 
+    required this.file, 
+    required this.fileName, 
     required this.dark,
     this.onFileOpened,
   });
@@ -1311,126 +1311,124 @@ class ViewerScreen extends StatefulWidget {
 }
 
 class _ViewerScreenState extends State<ViewerScreen> {
-  late InAppWebViewController _webController;
-  bool _isLoading = true;
-  String? _currentUrl;
+  InAppWebViewController? _controller;
+  bool _loaded = false;
+  File? _savedFile;
 
   @override
   void initState() {
     super.initState();
-    widget.onFileOpened?.call();
+    // Viewer açıldığında callback'i çağır
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onFileOpened?.call();
+    });
+  }
+
+  String _makeViewerUrl() {
+    final fileUri = Uri.file(widget.file.path).toString();
+    final dark = widget.dark ? 'true' : 'false';
+    final url = 'file:///android_asset/flutter_assets/assets/web/viewer.html?file=${Uri.encodeComponent(fileUri)}&dark=$dark';
+    return url;
+  }
+
+  Future<void> _handleOnPdfSaved(List<dynamic> args) async {
+    try {
+      final originalName = args.isNotEmpty ? (args[0] as String) : widget.fileName;
+      final base64Data = (args.length > 1 && args[1] != null) ? args[1] as String : null;
+      final dir = widget.file.parent.path;
+      final savedName = 'update_$originalName';
+      final newPath = p.join(dir, savedName);
+
+      if (base64Data != null && base64Data.isNotEmpty) {
+        final bytes = base64Decode(base64Data);
+        final f = await File(newPath).writeAsBytes(bytes);
+        _savedFile = f;
+      } else {
+        // fallback: copy original file
+        final f = await widget.file.copy(newPath);
+        _savedFile = f;
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${p.basename(_savedFile!.path)} kaydedildi')));
+      }
+    } catch (e) {
+      debugPrint('onPdfSaved error: $e');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kaydetme başarısız')));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.fileName),
-        backgroundColor: widget.dark ? Colors.black : Colors.red,
-        foregroundColor: widget.dark ? Colors.red : Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.save),
-            onPressed: _saveFile,
-            tooltip: 'Kaydet',
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          InAppWebView(
-            initialFile: "assets/pdfjs/web/viewer.html",
-            initialOptions: InAppWebViewGroupOptions(
-              crossPlatform: InAppWebViewOptions(
+    final url = _makeViewerUrl();
+
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pop(context, _savedFile);
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.fileName),
+          backgroundColor: widget.dark ? Colors.black : Colors.red,
+          foregroundColor: widget.dark ? Colors.red : Colors.white,
+          actions: [
+            IconButton(
+              icon: Icon(Icons.share,
+                color: widget.dark ? Colors.red : Colors.white
+              ),
+              onPressed: () async {
+                try {
+                  await Share.shareXFiles([XFile(widget.file.path)],
+                    text: 'PDF Dosyası: ${widget.fileName}'
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Paylaşım başarısız'))
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            Container(color: widget.dark ? Colors.black : Colors.transparent),
+            InAppWebView(
+              initialUrlRequest: URLRequest(url: WebUri(url)),
+              initialSettings: InAppWebViewSettings(
                 javaScriptEnabled: true,
-                transparentBackground: true,
+                allowFileAccess: true,
+                allowFileAccessFromFileURLs: true,
+                allowUniversalAccessFromFileURLs: true,
+                supportZoom: true,
+                useHybridComposition: true,
               ),
+              onWebViewCreated: (controller) async {
+                _controller = controller;
+                controller.addJavaScriptHandler(handlerName: "onPdfSaved", callback: (args) {
+                  _handleOnPdfSaved(args);
+                });
+              },
+              onLoadStop: (controller, url) {
+                setState(() => _loaded = true);
+              },
+              onConsoleMessage: (controller, message) {
+                debugPrint('WEBVIEW: ${message.message}');
+              },
+              onLoadError: (controller, url, code, message) {
+                debugPrint('WEBVIEW LOAD ERROR ($code): $message');
+              },
             ),
-            onWebViewCreated: (controller) {
-              _webController = controller;
-              _loadPdf();
-            },
-            onLoadStart: (controller, url) {
-              setState(() {
-                _currentUrl = url?.toString();
-              });
-            },
-            onLoadStop: (controller, url) async {
-              setState(() {
-                _isLoading = false;
-                _currentUrl = url?.toString();
-              });
-            },
-          ),
-          if (_isLoading) Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(
-                widget.dark ? Colors.red : Colors.red
+            if (!_loaded)
+              Center(
+                child: CircularProgressIndicator(
+                  color: widget.dark ? Colors.red : Colors.red
+                ),
               ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
-  }
-
-  void _loadPdf() async {
-    final pdfData = await widget.file.readAsBytes();
-    final pdfBase64 = base64Encode(pdfData);
-    
-    final script = '''
-      PDFViewerApplication.open(new Uint8Array(atob("$pdfBase64").split("").map(c => c.charCodeAt(0))));
-      document.body.style.backgroundColor = "${widget.dark ? '#000000' : '#ffffff'}";
-    ''';
-    
-    await _webController.evaluateJavascript(source: script);
-  }
-
-  void _saveFile() async {
-    try {
-      final script = '''
-        if (window.PDFViewerApplication && PDFViewerApplication.pdfDocument) {
-          PDFViewerApplication.download();
-        }
-      ''';
-      
-      final result = await _webController.evaluateJavascript(source: script);
-      
-      // PDF.js download işlemini tetikledikten sonra dosyayı güncelle
-      _updateOriginalFile();
-      
-    } catch (e) {
-      debugPrint('Save error: $e');
-      _showSnackbar('Kaydetme başarısız');
-    }
-  }
-
-  void _updateOriginalFile() async {
-    try {
-      // Orijinal dosyanın adını güncelle - "update_" öneki ekle
-      final originalPath = widget.file.path;
-      final dir = p.dirname(originalPath);
-      final baseName = p.basenameWithoutExtension(originalPath);
-      final extension = p.extension(originalPath);
-      final newName = 'update_$baseName$extension';
-      final newPath = p.join(dir, newName);
-      
-      // Yeni dosyayı oluştur (gerçek uygulamada PDF.js'den gelen veriyi kaydetmeniz gerekir)
-      final newFile = await widget.file.copy(newPath);
-      
-      _showSnackbar('Dosya güncellendi: $newName');
-      
-      // Ana sayfaya yeni dosya yolunu döndür
-      if (context.mounted) {
-        Navigator.pop(context, newFile);
-      }
-    } catch (e) {
-      debugPrint('Update file error: $e');
-      _showSnackbar('Dosya güncelleme başarısız');
-    }
-  }
-
-  void _showSnackbar(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 }
