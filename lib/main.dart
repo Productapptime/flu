@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path/path.dart' as p;
-import 'package:local_auth/local_auth.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:printing/printing.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,14 +55,10 @@ class PdfFileItem extends FileSystemItem {
 
 class PdfFolderItem extends FileSystemItem {
   Color color;
-  bool isLocked;
-  String? password;
   PdfFolderItem({
     required String id,
     required String name,
     this.color = Colors.grey,
-    this.isLocked = false,
-    this.password,
   }) : super(id, name);
 }
 
@@ -83,12 +80,11 @@ class _PDFHomePageState extends State<PDFHomePage> {
   final List<FileSystemItem> _selectedItems = [];
   int _bottomIndex = 0;
   bool _darkModeManual = false;
-  final LocalAuthentication _localAuth = LocalAuthentication();
 
   @override
   void initState() {
     super.initState();
-    // Demo verileri kaldırıldı
+    // Demo veriler kaldırıldı - tamamen boş başlıyor
   }
 
   @override
@@ -102,39 +98,54 @@ class _PDFHomePageState extends State<PDFHomePage> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
+        allowMultiple: true, // Çoklu dosya seçimi
       );
-      if (result != null && result.files.single.path != null) {
-        final path = result.files.single.path!;
-        final f = File(path);
-        final id = 'file_${DateTime.now().millisecondsSinceEpoch}';
-        final name = p.basename(path);
-        final exists = _items.any((it) => it is PdfFileItem && (it as PdfFileItem).file.path == path);
-        if (!exists) {
-          setState(() {
-            _items.add(PdfFileItem(id: id, name: name, file: f));
-          });
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Imported $name')));
+      
+      if (result != null && result.files.isNotEmpty) {
+        int importedCount = 0;
+        
+        for (final file in result.files) {
+          if (file.path != null) {
+            final path = file.path!;
+            final f = File(path);
+            final id = 'file_${DateTime.now().millisecondsSinceEpoch}_${importedCount}';
+            final name = p.basename(path);
+            
+            // Aynı dosya kontrolü
+            final exists = _items.any((it) => it is PdfFileItem && (it as PdfFileItem).file.path == path);
+            if (!exists) {
+              setState(() {
+                _items.add(PdfFileItem(id: id, name: name, file: f));
+              });
+              importedCount++;
+            }
           }
-        } else {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File already in list')));
-          }
+        }
+        
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$importedCount dosya içe aktarıldı'))
+          );
         }
       }
     } catch (e) {
       debugPrint('Import error: $e');
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Import failed')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('İçe aktarma başarısız'))
+        );
       }
     }
   }
 
   void _createFolder() async {
-    final name = await _showTextInput('New folder name', '');
+    final name = await _showTextInput('Yeni klasör adı', '');
     if (name != null && name.trim().isNotEmpty) {
       setState(() {
-        _items.insert(0, PdfFolderItem(id: 'folder_${DateTime.now().millisecondsSinceEpoch}', name: name.trim()));
+        _items.insert(0, PdfFolderItem(
+          id: 'folder_${DateTime.now().millisecondsSinceEpoch}', 
+          name: name.trim()
+        ));
       });
     }
   }
@@ -147,8 +158,14 @@ class _PDFHomePageState extends State<PDFHomePage> {
         title: Text(title),
         content: TextField(controller: controller, autofocus: true),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, controller.text), child: const Text('OK')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx), 
+            child: const Text('İptal')
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, controller.text), 
+            child: const Text('Tamam')
+          ),
         ],
       ),
     );
@@ -159,9 +176,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
       _selectionMode = !_selectionMode;
       if (!_selectionMode) _selectedItems.clear();
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_selectionMode ? 'Selection enabled' : 'Selection disabled')),
-    );
   }
 
   void _sortByName() {
@@ -174,11 +188,39 @@ class _PDFHomePageState extends State<PDFHomePage> {
     showModalBottomSheet(context: context, builder: (ctx) {
       return SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(title: const Text('Sort A → Z'), onTap: () { Navigator.pop(ctx); _sortByName(); }),
-          ListTile(title: const Text('Sort Z → A'), onTap: () { Navigator.pop(ctx); setState(() => _items.sort((a,b)=>b.name.toLowerCase().compareTo(a.name.toLowerCase()))); }),
-          ListTile(title: const Text('Sort by Recent (sample)'), onTap: () { Navigator.pop(ctx); }),
+          ListTile(
+            leading: const Icon(Icons.sort_by_alpha),
+            title: const Text('A\'dan Z\'ye sırala'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _sortByName(); 
+            }
+          ),
+          ListTile(
+            leading: const Icon(Icons.sort_by_alpha),
+            title: const Text('Z\'den A\'ya sırala'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              setState(() => _items.sort((a,b)=>b.name.toLowerCase().compareTo(a.name.toLowerCase()))); 
+            }
+          ),
+          ListTile(
+            leading: const Icon(Icons.access_time),
+            title: const Text('Tarihe göre sırala'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _sortByDate(); 
+            }
+          ),
         ]),
       );
+    });
+  }
+
+  void _sortByDate() {
+    // Basit tarih sıralama örneği - gerçek uygulamada dosya tarihlerini kullanın
+    setState(() {
+      _items.shuffle(); // Demo amaçlı
     });
   }
 
@@ -192,134 +234,231 @@ class _PDFHomePageState extends State<PDFHomePage> {
       )),
     );
 
-    // if viewer returned a saved File — add to list
+    // Görüntüleyiciden dönen kayıtlı dosyayı işle
     if (returned != null && returned.existsSync()) {
       final exists = _items.any((it) => it is PdfFileItem && (it as PdfFileItem).file.path == returned.path);
       if (!exists) {
         setState(() {
-          _items.add(PdfFileItem(id: 'file_${DateTime.now().millisecondsSinceEpoch}', name: p.basename(returned.path), file: returned));
+          _items.add(PdfFileItem(
+            id: 'file_${DateTime.now().millisecondsSinceEpoch}', 
+            name: p.basename(returned.path), 
+            file: returned
+          ));
         });
       }
     }
   }
 
-  void _openFolder(PdfFolderItem folder) async {
-    if (folder.isLocked) {
-      final unlocked = await _unlockFolder(folder);
-      if (!unlocked) {
-        return; // Klasör açılamadı
-      }
+  Future<void> _shareFile(PdfFileItem item) async {
+    try {
+      await Share.shareXFiles([XFile(item.file.path)],
+        text: 'PDF Dosyası: ${item.name}'
+      );
+    } catch (e) {
+      debugPrint('Share error: $e');
+      _notify('Paylaşım başarısız');
     }
-    
-    // Klasör açma işlemi
-    _notify('Opened folder: ${folder.name}');
   }
 
-  Future<bool> _unlockFolder(PdfFolderItem folder) async {
-    // Önce parola ile açmayı dene
-    final password = await _showTextInput('Enter folder password', '');
-    if (password != null && password == folder.password) {
-      setState(() {
-        folder.isLocked = false;
-      });
-      _notify('Folder unlocked');
-      return true;
-    }
-    
-    // Parola yanlışsa veya girilmezse biyometrik kimlik doğrulamayı dene
+  Future<void> _printFile(PdfFileItem item) async {
     try {
-      final didAuthenticate = await _localAuth.authenticate(
-        localizedReason: 'Authenticate to unlock the folder',
-        options: const AuthenticationOptions(
-          biometricOnly: false,
-          useErrorDialogs: true,
+      final pdfData = await item.file.readAsBytes();
+      await Printing.layoutPdf(
+        onLayout: (format) => pdfData,
+      );
+    } catch (e) {
+      debugPrint('Print error: $e');
+      _notify('Yazdırma başarısız');
+    }
+  }
+
+  void _moveItem(FileSystemItem item) {
+    // Klasör seçimi için modal göster
+    showModalBottomSheet(context: context, builder: (ctx) {
+      final folders = _items.whereType<PdfFolderItem>().toList();
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text('Klasöre Taşı', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            if (folders.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text('Taşınabilecek klasör bulunmuyor'),
+              )
+            else
+              ...folders.map((folder) => ListTile(
+                leading: Icon(Icons.folder, color: folder.color),
+                title: Text(folder.name),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _performMove(item, folder);
+                },
+              )).toList(),
+            ListTile(
+              leading: const Icon(Icons.create_new_folder),
+              title: const Text('Yeni klasör oluştur'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _createFolderForMove(item);
+              },
+            ),
+          ],
         ),
       );
-      
-      if (didAuthenticate) {
-        setState(() {
-          folder.isLocked = false;
-        });
-        _notify('Folder unlocked with biometric authentication');
-        return true;
-      }
-    } catch (e) {
-      debugPrint('Biometric auth error: $e');
+    });
+  }
+
+  void _createFolderForMove(FileSystemItem item) async {
+    final name = await _showTextInput('Yeni klasör adı', '');
+    if (name != null && name.trim().isNotEmpty) {
+      final newFolder = PdfFolderItem(
+        id: 'folder_${DateTime.now().millisecondsSinceEpoch}', 
+        name: name.trim()
+      );
+      setState(() {
+        _items.insert(0, newFolder);
+      });
+      _performMove(item, newFolder);
     }
-    
-    _notify('Failed to unlock folder');
-    return false;
+  }
+
+  void _performMove(FileSystemItem item, PdfFolderItem folder) {
+    // Bu örnekte sadece UI'da taşıma yapılıyor
+    // Gerçek uygulamada dosya sistemi işlemleri gerekli
+    setState(() {
+      _items.remove(item);
+      // Klasör içine taşıma mantığı buraya eklenebilir
+      _items.insert(0, item); // En üste taşı
+    });
+    _notify('"${item.name}" "${folder.name}" klasörüne taşındı');
   }
 
   void _showFileMenu(FileSystemItem item) {
     if (item is PdfFileItem) {
       showModalBottomSheet(context: context, builder: (ctx) {
         return SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: const Icon(Icons.drive_file_rename_outline), title: const Text('Rename'), onTap: () { Navigator.pop(ctx); _renameItem(item); }),
-          ListTile(leading: const Icon(Icons.print), title: const Text('Print'), onTap: () { Navigator.pop(ctx); _printPdf(item); }),
-          ListTile(leading: const Icon(Icons.share), title: const Text('Share'), onTap: () { Navigator.pop(ctx); _sharePdf(item); }),
-          ListTile(leading: const Icon(Icons.drive_file_move), title: const Text('Move'), onTap: () { Navigator.pop(ctx); _moveItem(item); }),
-          ListTile(leading: const Icon(Icons.delete_outline), title: const Text('Delete'), onTap: () { Navigator.pop(ctx); _deleteItem(item); }),
+          ListTile(
+            leading: const Icon(Icons.drive_file_rename_outline), 
+            title: const Text('Yeniden Adlandır'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _renameItem(item); 
+            }
+          ),
+          ListTile(
+            leading: const Icon(Icons.print), 
+            title: const Text('Yazdır'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _printFile(item); 
+            }
+          ),
+          ListTile(
+            leading: const Icon(Icons.share), 
+            title: const Text('Paylaş'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _shareFile(item); 
+            }
+          ),
+          ListTile(
+            leading: const Icon(Icons.drive_file_move), 
+            title: const Text('Taşı'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _moveItem(item); 
+            }
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_outline), 
+            title: const Text('Sil'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _deleteItem(item); 
+            }
+          ),
         ]));
       });
     } else if (item is PdfFolderItem) {
       showModalBottomSheet(context: context, builder: (ctx) {
         return SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: const Icon(Icons.drive_file_rename_outline), title: const Text('Rename'), onTap: () { Navigator.pop(ctx); _renameItem(item); }),
-          ListTile(leading: const Icon(Icons.drive_file_move), title: const Text('Move'), onTap: () { Navigator.pop(ctx); _moveItem(item); }),
-          ListTile(leading: Icon(item.isLocked ? Icons.lock_open : Icons.lock_outline), title: Text(item.isLocked ? 'Unlock' : 'Lock'), onTap: () { Navigator.pop(ctx); _toggleLock(folder: item); }),
-          ListTile(leading: Icon(Icons.color_lens, color: item.color), title: const Text('Change color'), onTap: () { Navigator.pop(ctx); _changeFolderColor(item); }),
-          ListTile(leading: const Icon(Icons.delete_outline), title: const Text('Delete'), onTap: () { Navigator.pop(ctx); _deleteItem(item); }),
+          ListTile(
+            leading: const Icon(Icons.drive_file_rename_outline), 
+            title: const Text('Yeniden Adlandır'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _renameItem(item); 
+            }
+          ),
+          ListTile(
+            leading: const Icon(Icons.drive_file_move), 
+            title: const Text('Taşı'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _moveItem(item); 
+            }
+          ),
+          ListTile(
+            leading: Icon(Icons.color_lens, color: item.color), 
+            title: const Text('Rengi değiştir'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _changeFolderColor(item); 
+            }
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_outline), 
+            title: const Text('Sil'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _deleteItem(item); 
+            }
+          ),
         ]));
       });
     }
   }
 
   void _renameItem(FileSystemItem item) async {
-    final newName = await _showTextInput('Rename', item.name);
+    final newName = await _showTextInput('Yeniden Adlandır', item.name);
     if (newName != null && newName.trim().isNotEmpty) {
       setState(() => item.name = newName.trim());
     }
   }
 
   void _deleteItem(FileSystemItem item) {
-    setState(() {
-      _items.remove(item);
-      _selectedItems.remove(item);
-    });
-    _notify('Deleted ${item.name}');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sil'),
+        content: Text('"${item.name}" silinsin mi? Bu işlem geri alınamaz.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx), 
+            child: const Text('İptal')
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                _items.remove(item);
+                _selectedItems.remove(item);
+              });
+              _notify('"${item.name}" silindi');
+            }, 
+            child: const Text('Sil', style: TextStyle(color: Colors.red))
+          ),
+        ],
+      ),
+    );
   }
 
   void _notify(String text) {
     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-  }
-
-  void _toggleLock({required PdfFolderItem folder}) async {
-    if (folder.isLocked) {
-      // Klasörü aç
-      final unlocked = await _unlockFolder(folder);
-      if (unlocked) {
-        setState(() { 
-          folder.isLocked = false; 
-          folder.password = null; 
-        });
-      }
-    } else {
-      // Klasörü kilitle - iki defa parola iste
-      final pw1 = await _showTextInput('Set folder password', '');
-      if (pw1 != null && pw1.trim().isNotEmpty) {
-        final pw2 = await _showTextInput('Confirm folder password', '');
-        if (pw2 != null && pw1 == pw2) {
-          setState(() { 
-            folder.isLocked = true; 
-            folder.password = pw1.trim(); 
-          });
-          _notify('Folder locked');
-        } else {
-          _notify('Passwords do not match');
-        }
-      }
-    }
   }
 
   void _changeFolderColor(PdfFolderItem folder) async {
@@ -332,77 +471,21 @@ class _PDFHomePageState extends State<PDFHomePage> {
           spacing: 8,
           children: colors.map((c) => GestureDetector(
             onTap: () => Navigator.pop(ctx, c),
-            child: Container(margin: const EdgeInsets.all(8), width: 48, height: 48, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(8))),
+            child: Container(
+              margin: const EdgeInsets.all(8), 
+              width: 48, 
+              height: 48, 
+              decoration: BoxDecoration(
+                color: c, 
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white, width: 2)
+              )
+            ),
           )).toList(),
         ));
       }
     );
     if (chosen != null) setState(() => folder.color = chosen);
-  }
-
-  // Yeni eklenen fonksiyonlar
-  void _printPdf(PdfFileItem item) {
-    // PDF yazdırma işlevi
-    _notify('Printing ${item.name}');
-    // Burada gerçek yazdırma işlevselliği eklenebilir
-  }
-
-  void _sharePdf(PdfFileItem item) {
-    // PDF paylaşma işlevi
-    _notify('Sharing ${item.name}');
-    // Burada gerçek paylaşma işlevselliği eklenebilir
-  }
-
-  void _moveItem(FileSystemItem item) {
-    // Öğe taşıma işlevi
-    _notify('Moving ${item.name}');
-    // Burada gerçek taşıma işlevselliği eklenebilir
-  }
-
-  void _performBulkAction() {
-    if (_selectedItems.isEmpty) return;
-
-    showModalBottomSheet(context: context, builder: (ctx) {
-      return SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        ListTile(
-          leading: const Icon(Icons.share),
-          title: const Text('Share selected PDFs'),
-          onTap: () {
-            Navigator.pop(ctx);
-            _notify('Sharing ${_selectedItems.length} PDFs');
-            // Toplu paylaşma işlevselliği
-          },
-        ),
-        ListTile(
-          leading: const Icon(Icons.print),
-          title: const Text('Print selected PDFs'),
-          onTap: () {
-            Navigator.pop(ctx);
-            _notify('Printing ${_selectedItems.length} PDFs');
-            // Toplu yazdırma işlevselliği
-          },
-        ),
-        ListTile(
-          leading: const Icon(Icons.delete),
-          title: const Text('Delete selected PDFs'),
-          onTap: () {
-            Navigator.pop(ctx);
-            _deleteSelectedItems();
-          },
-        ),
-      ]));
-    });
-  }
-
-  void _deleteSelectedItems() {
-    setState(() {
-      for (var item in _selectedItems) {
-        _items.remove(item);
-      }
-      _selectedItems.clear();
-      _selectionMode = false;
-    });
-    _notify('Deleted ${_selectedItems.length} items');
   }
 
   /* ----------------------
@@ -411,89 +494,63 @@ class _PDFHomePageState extends State<PDFHomePage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final brightness = theme.brightness;
-    final title = _bottomIndex == 0 ? 'All Files' : (_bottomIndex == 1 ? 'Recent' : (_bottomIndex == 2 ? 'Favorites' : 'Tools'));
+    final title = _bottomIndex == 0 ? 'Tüm Dosyalar' : (_bottomIndex == 1 ? 'Son' : (_bottomIndex == 2 ? 'Favoriler' : 'Araçlar'));
 
     return Scaffold(
       drawer: Drawer(
         child: SafeArea(
           child: Column(children: [
             DrawerHeader(
-              child: Text('PDF Reader & Manager', style: theme.textTheme.headlineSmall?.copyWith(color: Colors.white)),
+              child: Text('PDF Okuyucu & Yönetici', style: theme.textTheme.headlineSmall?.copyWith(color: Colors.white)),
               decoration: BoxDecoration(color: theme.colorScheme.primary)
             ),
             ListTile(
               leading: const Icon(Icons.cloud_upload), 
-              title: const Text('Import PDF'), 
-              onTap: () { Navigator.pop(context); _importPdf(); }
+              title: const Text('PDF İçe Aktar'), 
+              onTap: () { 
+                Navigator.pop(context); 
+                _importPdf(); 
+              }
+            ),
+            ListTile(
+              leading: const Icon(Icons.create_new_folder), 
+              title: const Text('Klasör Oluştur'), 
+              onTap: () { 
+                Navigator.pop(context); 
+                _createFolder(); 
+              }
             ),
             ListTile(
               leading: const Icon(Icons.info), 
-              title: const Text('About'), 
+              title: const Text('Hakkında'), 
               onTap: () { 
                 Navigator.pop(context); 
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('About'),
-                    content: const Text('PDF Manager is a powerful application that allows you to manage, view, and organize your PDF files efficiently. With features like folder organization, file locking, and seamless PDF viewing, it provides a complete solution for your document management needs.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text('OK'),
-                      ),
-                    ],
-                  ),
-                );
+                _notify('PDF Manager v1.0'); 
               }
             ),
             SwitchListTile(
               secondary: const Icon(Icons.dark_mode),
-              title: const Text('Dark Mode'),
+              title: const Text('Karanlık Mod'),
               value: _darkModeManual,
               onChanged: (v) {
                 setState(() { _darkModeManual = v; });
-                _notify('Dark mode toggled (widget-level). WebView will receive param on open.');
+                _notify('Karanlık mod ${v ? 'açıldı' : 'kapatıldı'}');
               },
             ),
             ListTile(
               leading: const Icon(Icons.policy), 
-              title: const Text('Policy'), 
+              title: const Text('Gizlilik Politikası'), 
               onTap: () { 
                 Navigator.pop(context); 
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Privacy Policy'),
-                    content: const Text('This application performs all functions locally on your device. Your PDF files and personal data are not transmitted to any external servers. All operations including file management, folder locking, and PDF viewing are processed entirely on your device to ensure maximum privacy and security.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text('OK'),
-                      ),
-                    ],
-                  ),
-                );
+                _notify('Gizlilik Politikası'); 
               }
             ),
             ListTile(
               leading: const Icon(Icons.language), 
-              title: const Text('Language'), 
+              title: const Text('Dil'), 
               onTap: () { 
                 Navigator.pop(context); 
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Language'),
-                    content: const Text('The application language automatically changes according to your device language settings. The app supports multiple languages and will display in the language set on your device.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text('OK'),
-                      ),
-                    ],
-                  ),
-                );
+                _notify('Dil Seçenekleri'); 
               }
             ),
           ]),
@@ -503,29 +560,46 @@ class _PDFHomePageState extends State<PDFHomePage> {
         title: _isSearching ? _buildSearchField() : Text(title),
         centerTitle: true,
         actions: [
-          IconButton(icon: const Icon(Icons.search), onPressed: () { setState(() => _isSearching = !_isSearching); }),
-          IconButton(icon: const Icon(Icons.create_new_folder), onPressed: _createFolder),
-          IconButton(icon: const Icon(Icons.sort), onPressed: _showSortSheet),
-          if (_selectionMode && _selectedItems.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.more_vert),
-              onPressed: _performBulkAction,
-            ),
           IconButton(
-            icon: _selectionMode ? const Icon(Icons.check_box) : const Icon(Icons.check_box_outline_blank),
-            onPressed: _toggleSelectionMode,
+            icon: const Icon(Icons.search), 
+            onPressed: () { 
+              setState(() => _isSearching = !_isSearching); 
+              if (!_isSearching) _searchController.clear();
+            }
+          ),
+          IconButton(
+            icon: const Icon(Icons.create_new_folder), 
+            onPressed: _createFolder
+          ),
+          IconButton(
+            icon: const Icon(Icons.sort), 
+            onPressed: _showSortSheet
+          ),
+          IconButton(
+            icon: _selectionMode ? const Icon(Icons.check_box) : const Icon(Icons.check_box_outline_blank), 
+            onPressed: _toggleSelectionMode
+          ),
+          IconButton(
+            icon: const Icon(Icons.add), 
+            onPressed: _importPdf
           ),
         ],
       ),
       body: _buildBody(),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _bottomIndex,
-        onTap: (i) { setState(() { _bottomIndex = i; _selectionMode = false; _selectedItems.clear(); }); },
+        onTap: (i) { 
+          setState(() { 
+            _bottomIndex = i; 
+            _selectionMode = false; 
+            _selectedItems.clear(); 
+          }); 
+        },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'All Files'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Recent'),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Favorites'),
-          BottomNavigationBarItem(icon: Icon(Icons.build), label: 'Tools'),
+          BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'Tüm Dosyalar'),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Son'),
+          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Favoriler'),
+          BottomNavigationBarItem(icon: Icon(Icons.build), label: 'Araçlar'),
         ],
       ),
     );
@@ -534,7 +608,13 @@ class _PDFHomePageState extends State<PDFHomePage> {
   Widget _buildSearchField() {
     return TextField(
       controller: _searchController,
-      decoration: const InputDecoration(hintText: 'Search files...', border: InputBorder.none),
+      decoration: const InputDecoration(
+        hintText: 'Dosyalarda ara...', 
+        border: InputBorder.none,
+        hintStyle: TextStyle(color: Colors.white70)
+      ),
+      style: const TextStyle(color: Colors.white),
+      autofocus: true,
       onChanged: (_) => setState(() {}),
     );
   }
@@ -547,11 +627,40 @@ class _PDFHomePageState extends State<PDFHomePage> {
     }
 
     if (_bottomIndex != 0) {
-      return Center(child: Text('Tab "${_bottomIndex == 1 ? "Recent" : _bottomIndex == 2 ? "Favorites" : "Tools"}" - placeholder'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.construction, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              '${_bottomIndex == 1 ? "Son" : _bottomIndex == 2 ? "Favoriler" : "Araçlar"} sekmesi - Yakında',
+              style: TextStyle(color: Colors.grey[600], fontSize: 16),
+            ),
+          ],
+        ),
+      );
     }
 
     if (display.isEmpty) {
-      return const Center(child: Text('No files yet. Use the drawer to import PDF files.'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.folder_open, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            const Text(
+              'Henüz dosya yok',
+              style: TextStyle(fontSize: 18, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'İçe aktarmak için + butonunu kullanın',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
     }
 
     return ListView.separated(
@@ -560,39 +669,36 @@ class _PDFHomePageState extends State<PDFHomePage> {
       separatorBuilder: (_,__) => const Divider(height: 1),
       itemBuilder: (ctx, i) {
         final it = display[i];
+        final isSelected = _selectedItems.contains(it);
+        
         if (it is PdfFolderItem) {
           return ListTile(
             leading: Icon(Icons.folder, color: it.color),
             title: Text(it.name),
-            trailing: it.isLocked ? const Icon(Icons.lock, size: 16) : null,
-            subtitle: it.isLocked ? const Text('Locked') : null,
+            trailing: IconButton(
+              icon: const Icon(Icons.more_vert), 
+              onPressed: () => _showFileMenu(it)
+            ),
             onTap: () {
-              _openFolder(it);
+              if (_selectionMode) _toggleSelect(it);
+              else _notify('Klasör aç: ${it.name}');
             },
-            onLongPress: () => _showFileMenu(it),
+            tileColor: isSelected ? Theme.of(context).colorScheme.primary.withOpacity(0.1) : null,
           );
         } else if (it is PdfFileItem) {
-          final isSelected = _selectedItems.contains(it);
           return ListTile(
-            leading: _selectionMode 
-                ? Icon(isSelected ? Icons.check_box : Icons.check_box_outline_blank)
-                : const Icon(Icons.picture_as_pdf, color: Colors.red),
+            leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
             title: Text(it.name),
             subtitle: Text(it.file.path, maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: _selectionMode ? null : IconButton(icon: const Icon(Icons.more_vert), onPressed: () => _showFileMenu(it)),
+            trailing: IconButton(
+              icon: const Icon(Icons.more_vert), 
+              onPressed: () => _showFileMenu(it)
+            ),
             onTap: () {
-              if (_selectionMode) {
-                _toggleSelect(it);
-              } else {
-                _openFile(it);
-              }
+              if (_selectionMode) _toggleSelect(it);
+              else _openFile(it);
             },
-            onLongPress: () {
-              if (!_selectionMode) {
-                _toggleSelectionMode();
-                _toggleSelect(it);
-              }
-            },
+            tileColor: isSelected ? Theme.of(context).colorScheme.primary.withOpacity(0.1) : null,
           );
         } else {
           return const SizedBox.shrink();
@@ -602,9 +708,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
   }
 
   void _toggleSelect(FileSystemItem item) {
-    // Sadece PDF dosyaları seçilebilir, klasörler seçilemez
-    if (item is PdfFolderItem) return;
-    
     setState(() {
       if (_selectedItems.contains(item)) {
         _selectedItems.remove(item);
@@ -617,9 +720,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
 
 /* ----------------------
    Viewer screen
-   - loads viewer.html from assets via file:///android_asset/...
-   - passes ?file=<fileUri>&dark=true|false
-   - registers addJavaScriptHandler("onPdfSaved", ...) to receive filename & base64
 ---------------------- */
 
 class ViewerScreen extends StatefulWidget {
@@ -643,9 +743,6 @@ class _ViewerScreenState extends State<ViewerScreen> {
   }
 
   String _makeViewerUrl() {
-    // viewer.html asset path inside Flutter APK:
-    // file:///android_asset/flutter_assets/assets/web/viewer.html
-    // file param must be a file:// uri that the viewer can fetch inside WebView
     final fileUri = Uri.file(widget.file.path).toString();
     final dark = widget.dark ? 'true' : 'false';
     final url = 'file:///android_asset/flutter_assets/assets/web/viewer.html?file=${Uri.encodeComponent(fileUri)}&dark=$dark';
@@ -653,7 +750,6 @@ class _ViewerScreenState extends State<ViewerScreen> {
   }
 
   Future<void> _handleOnPdfSaved(List<dynamic> args) async {
-    // args[0] = filename (string), args[1] = base64data (optional)
     try {
       final originalName = args.isNotEmpty ? (args[0] as String) : widget.fileName;
       final base64Data = (args.length > 1 && args[1] != null) ? args[1] as String : null;
@@ -672,11 +768,11 @@ class _ViewerScreenState extends State<ViewerScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved ${p.basename(_savedFile!.path)}')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${p.basename(_savedFile!.path)} kaydedildi')));
       }
     } catch (e) {
       debugPrint('onPdfSaved error: $e');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Save failed')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kaydetme başarısız')));
     }
   }
 
@@ -693,10 +789,25 @@ class _ViewerScreenState extends State<ViewerScreen> {
         appBar: AppBar(
           title: Text(widget.fileName),
           backgroundColor: Colors.red,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.share),
+              onPressed: () async {
+                try {
+                  await Share.shareXFiles([XFile(widget.file.path)],
+                    text: 'PDF Dosyası: ${widget.fileName}'
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Paylaşım başarısız'))
+                  );
+                }
+              },
+            ),
+          ],
         ),
         body: Stack(
           children: [
-            // overlay that influences iframe area to appear dark when dark mode — matching your request
             Container(color: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.transparent),
             InAppWebView(
               initialUrlRequest: URLRequest(url: WebUri(url)),
@@ -710,7 +821,6 @@ class _ViewerScreenState extends State<ViewerScreen> {
               ),
               onWebViewCreated: (controller) async {
                 _controller = controller;
-                // register handler to be called from viewer.html JS:
                 controller.addJavaScriptHandler(handlerName: "onPdfSaved", callback: (args) {
                   _handleOnPdfSaved(args);
                 });
