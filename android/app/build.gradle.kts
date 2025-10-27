@@ -9,7 +9,7 @@ android {
     namespace = "com.example.hello_flutter"
 
     // 🔧 Flutter değişkenlerinden bağımsız sabitle
-    compileSdk = 34
+    compileSdk = 35  // 🔄 34'ten 35'e değiştirildi
     ndkVersion = "27.0.12077973"  // ✅ inappwebview 6.1.5 için gerekli NDK
 
     compileOptions {
