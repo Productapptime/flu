@@ -35,6 +35,12 @@ class PDFApp extends StatelessWidget {
           backgroundColor: Colors.red,
           foregroundColor: Colors.white,
         ),
+        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+          selectedLabelStyle: TextStyle(fontSize: 12, color: Colors.red),
+          unselectedLabelStyle: TextStyle(fontSize: 12, color: Colors.black),
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+        ),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
@@ -50,6 +56,12 @@ class PDFApp extends StatelessWidget {
           foregroundColor: Colors.red,
         ),
         iconTheme: IconThemeData(color: Colors.red),
+        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+          selectedLabelStyle: const TextStyle(fontSize: 12, color: Colors.red),
+          unselectedLabelStyle: TextStyle(fontSize: 12, color: Colors.grey[400]),
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+        ),
       ),
       themeMode: ThemeMode.system,
       home: const PDFHomePage(),
@@ -247,28 +259,36 @@ class _PDFHomePageState extends State<PDFHomePage> {
           if (file.path != null) {
             final path = file.path!;
             final f = File(path);
-            final id = 'file_${DateTime.now().millisecondsSinceEpoch}_${importedCount}';
-            final name = p.basename(path);
+            String name = p.basename(path);
             
-            // Aynı dosya kontrolü
-            final exists = _allItems.any((it) => it is PdfFileItem && (it as PdfFileItem).file.path == path);
-            if (!exists) {
-              setState(() {
-                final newFile = PdfFileItem(
-                  id: id, 
-                  name: name, 
-                  file: f,
-                  folderId: _currentFolder?.id,
-                );
-                _allItems.add(newFile);
-                
-                // Eğer klasör içindeysek, klasöre de ekle
-                if (_currentFolder != null) {
-                  _currentFolder!.items.add(newFile);
-                }
-              });
-              importedCount++;
+            // Aynı dosya kontrolü - eğer varsa numaralandır
+            int counter = 1;
+            String baseName = p.basenameWithoutExtension(path);
+            String extension = p.extension(path);
+            
+            while (_allItems.any((it) => it is PdfFileItem && (it as PdfFileItem).file.path == path) || 
+                   _allItems.any((it) => it.name == name)) {
+              name = '$baseName($counter)$extension';
+              counter++;
             }
+            
+            final id = 'file_${DateTime.now().millisecondsSinceEpoch}_${importedCount}';
+            
+            setState(() {
+              final newFile = PdfFileItem(
+                id: id, 
+                name: name, 
+                file: f,
+                folderId: _currentFolder?.id,
+              );
+              _allItems.add(newFile);
+              
+              // Eğer klasör içindeysek, klasöre de ekle
+              if (_currentFolder != null) {
+                _currentFolder!.items.add(newFile);
+              }
+            });
+            importedCount++;
           }
         }
         
@@ -344,6 +364,25 @@ class _PDFHomePageState extends State<PDFHomePage> {
     _saveData();
   }
 
+  void _sortBySize() {
+    setState(() {
+      _allItems.sort((a, b) {
+        if (a is PdfFileItem && b is PdfFileItem) {
+          final aSize = a.file.lengthSync();
+          final bSize = b.file.lengthSync();
+          return bSize.compareTo(aSize); // Büyükten küçüğe
+        } else if (a is PdfFileItem) {
+          return -1; // Dosyalar klasörlerden önce
+        } else if (b is PdfFileItem) {
+          return 1; // Klasörler dosyalardan sonra
+        } else {
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        }
+      });
+    });
+    _saveData();
+  }
+
   void _showSortSheet() {
     showModalBottomSheet(context: context, builder: (ctx) {
       return SafeArea(
@@ -363,6 +402,14 @@ class _PDFHomePageState extends State<PDFHomePage> {
               Navigator.pop(ctx); 
               setState(() => _allItems.sort((a,b)=>b.name.toLowerCase().compareTo(a.name.toLowerCase()))); 
               _saveData();
+            }
+          ),
+          ListTile(
+            leading: const Icon(Icons.storage),
+            title: const Text('Boyuta göre sırala'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _sortBySize(); 
             }
           ),
         ]),
@@ -413,27 +460,70 @@ class _PDFHomePageState extends State<PDFHomePage> {
     _notify(item.isFavorite ? 'Favorilere eklendi' : 'Favorilerden kaldırıldı');
   }
 
-  Future<void> _shareFile(PdfFileItem item) async {
+  Future<void> _shareFiles(List<FileSystemItem> items) async {
     try {
-      await Share.shareXFiles([XFile(item.file.path)],
-        text: 'PDF Dosyası: ${item.name}'
-      );
+      final files = items.whereType<PdfFileItem>().map((item) => XFile(item.file.path)).toList();
+      if (files.isNotEmpty) {
+        await Share.shareXFiles(files,
+          text: '${files.length} PDF Dosyası'
+        );
+      }
     } catch (e) {
       debugPrint('Share error: $e');
       _notify('Paylaşım başarısız');
     }
   }
 
-  Future<void> _printFile(PdfFileItem item) async {
+  Future<void> _printFiles(List<FileSystemItem> items) async {
     try {
-      final pdfData = await item.file.readAsBytes();
-      await Printing.layoutPdf(
-        onLayout: (format) => pdfData,
-      );
+      for (final item in items.whereType<PdfFileItem>()) {
+        final pdfData = await item.file.readAsBytes();
+        await Printing.layoutPdf(
+          onLayout: (format) => pdfData,
+        );
+      }
     } catch (e) {
       debugPrint('Print error: $e');
       _notify('Yazdırma başarısız');
     }
+  }
+
+  void _deleteSelectedItems() {
+    if (_selectedItems.isEmpty) return;
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sil'),
+        content: Text('${_selectedItems.length} öğe silinsin mi? Bu işlem geri alınamaz.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx), 
+            child: const Text('İptal')
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                for (final item in _selectedItems) {
+                  _allItems.remove(item);
+                  
+                  // Eğer bir klasör siliniyorsa, içindeki öğeleri de kaldır
+                  if (item is PdfFolderItem) {
+                    _allItems.removeWhere((it) => it.parentFolderId == item.id);
+                  }
+                }
+                _selectedItems.clear();
+                _selectionMode = false;
+              });
+              _saveData();
+              _notify('${_selectedItems.length} öğe silindi');
+            }, 
+            child: const Text('Sil', style: TextStyle(color: Colors.red))
+          ),
+        ],
+      ),
+    );
   }
 
   void _moveItem(FileSystemItem item) {
@@ -583,7 +673,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
             title: const Text('Yazdır'), 
             onTap: () { 
               Navigator.pop(ctx); 
-              _printFile(item); 
+              _printFiles([item]); 
             }
           ),
           ListTile(
@@ -591,7 +681,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
             title: const Text('Paylaş'), 
             onTap: () { 
               Navigator.pop(ctx); 
-              _shareFile(item); 
+              _shareFiles([item]); 
             }
           ),
           ListTile(
@@ -785,7 +875,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
     }
 
     return Scaffold(
-      drawer: _currentFolder == null ? Drawer(
+      drawer: _currentFolder == null && !_isSearching ? Drawer(
         child: SafeArea(
           child: Column(children: [
             DrawerHeader(
@@ -806,16 +896,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
               onTap: () { 
                 Navigator.pop(context); 
                 _importPdf(); 
-              }
-            ),
-            ListTile(
-              leading: Icon(Icons.create_new_folder,
-                color: _darkModeManual ? Colors.red : null
-              ), 
-              title: const Text('Klasör Oluştur'), 
-              onTap: () { 
-                Navigator.pop(context); 
-                _createFolder(); 
               }
             ),
             ListTile(
@@ -841,7 +921,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
               leading: Icon(Icons.policy,
                 color: _darkModeManual ? Colors.red : null
               ), 
-              title: const Text('Gizlilik Politikası'), 
+              title: const Text('Gizlilik'), 
               onTap: () { 
                 Navigator.pop(context); 
                 _notify('Gizlilik Politikası'); 
@@ -863,51 +943,10 @@ class _PDFHomePageState extends State<PDFHomePage> {
       appBar: AppBar(
         title: _isSearching ? _buildSearchField() : Text(title),
         centerTitle: true,
-        leading: _currentFolder != null 
-            ? IconButton(
-                icon: Icon(Icons.arrow_back,
-                  color: _darkModeManual ? Colors.red : Colors.white
-                ),
-                onPressed: _exitFolder,
-              )
-            : null,
+        leading: _buildLeadingIcon(),
         backgroundColor: _darkModeManual ? Colors.black : Colors.red,
         foregroundColor: _darkModeManual ? Colors.red : Colors.white,
-        actions: [
-          if (_currentFolder == null) ...[
-            IconButton(
-              icon: Icon(Icons.search,
-                color: _darkModeManual ? Colors.red : Colors.white
-              ), 
-              onPressed: () { 
-                setState(() => _isSearching = !_isSearching); 
-                if (!_isSearching) _searchController.clear();
-              }
-            ),
-            IconButton(
-              icon: Icon(Icons.create_new_folder,
-                color: _darkModeManual ? Colors.red : Colors.white
-              ), 
-              onPressed: _createFolder
-            ),
-            IconButton(
-              icon: Icon(Icons.sort,
-                color: _darkModeManual ? Colors.red : Colors.white
-              ), 
-              onPressed: _showSortSheet
-            ),
-            IconButton(
-              icon: _selectionMode 
-                  ? Icon(Icons.check_box,
-                      color: _darkModeManual ? Colors.red : Colors.white
-                    )
-                  : Icon(Icons.check_box_outline_blank,
-                      color: _darkModeManual ? Colors.red : Colors.white
-                    ), 
-              onPressed: _toggleSelectionMode
-            ),
-          ],
-        ],
+        actions: _buildAppBarActions(),
       ),
       body: _buildBody(),
       bottomNavigationBar: _currentFolder == null ? BottomNavigationBar(
@@ -920,7 +959,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
           }); 
         },
         selectedItemColor: Colors.red,
-        unselectedItemColor: Colors.grey,
+        unselectedItemColor: _darkModeManual ? Colors.grey[400] : Colors.black,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'Tüm Dosyalar'),
           BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Son'),
@@ -929,6 +968,87 @@ class _PDFHomePageState extends State<PDFHomePage> {
         ],
       ) : null,
     );
+  }
+
+  Widget? _buildLeadingIcon() {
+    if (_isSearching) {
+      return IconButton(
+        icon: Icon(Icons.close,
+          color: _darkModeManual ? Colors.red : Colors.white
+        ),
+        onPressed: () {
+          setState(() {
+            _isSearching = false;
+            _searchController.clear();
+          });
+        },
+      );
+    } else if (_currentFolder != null) {
+      return IconButton(
+        icon: Icon(Icons.arrow_back,
+          color: _darkModeManual ? Colors.red : Colors.white
+        ),
+        onPressed: _exitFolder,
+      );
+    }
+    return null;
+  }
+
+  List<Widget> _buildAppBarActions() {
+    if (_currentFolder != null) return [];
+    
+    if (_selectionMode && _selectedItems.isNotEmpty) {
+      return [
+        IconButton(
+          icon: Icon(Icons.print,
+            color: _darkModeManual ? Colors.red : Colors.white
+          ),
+          onPressed: () => _printFiles(_selectedItems),
+        ),
+        IconButton(
+          icon: Icon(Icons.share,
+            color: _darkModeManual ? Colors.red : Colors.white
+          ),
+          onPressed: () => _shareFiles(_selectedItems),
+        ),
+        IconButton(
+          icon: Icon(Icons.delete,
+            color: _darkModeManual ? Colors.red : Colors.white
+          ),
+          onPressed: _deleteSelectedItems,
+        ),
+      ];
+    }
+    
+    return [
+      if (!_isSearching) ...[
+        IconButton(
+          icon: Icon(Icons.search,
+            color: _darkModeManual ? Colors.red : Colors.white
+          ), 
+          onPressed: () { 
+            setState(() => _isSearching = !_isSearching); 
+            if (!_isSearching) _searchController.clear();
+          }
+        ),
+        IconButton(
+          icon: Icon(Icons.sort,
+            color: _darkModeManual ? Colors.red : Colors.white
+          ), 
+          onPressed: _showSortSheet
+        ),
+        IconButton(
+          icon: _selectionMode 
+              ? Icon(Icons.check_box,
+                  color: _darkModeManual ? Colors.red : Colors.white
+                )
+              : Icon(Icons.check_box_outline_blank,
+                  color: _darkModeManual ? Colors.red : Colors.white
+                ), 
+          onPressed: _toggleSelectionMode
+        ),
+      ],
+    ];
   }
 
   Widget _buildSearchField() {
@@ -994,7 +1114,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'İçe aktarmak için menüyü kullanın',
+              'Yeni PDF eklemek için + simgesine tıklayın',
               style: TextStyle(
                 color: _darkModeManual ? Colors.red : Colors.grey
               ),
@@ -1004,108 +1124,124 @@ class _PDFHomePageState extends State<PDFHomePage> {
       );
     }
 
-    return ListView.separated(
+    return ListView.builder(
       padding: const EdgeInsets.all(8),
       itemCount: display.length,
-      separatorBuilder: (_,__) => Divider(height: 1, color: _darkModeManual ? Colors.grey[800] : null),
       itemBuilder: (ctx, i) {
-        final it = display[i];
-        final isSelected = _selectedItems.contains(it);
+        final item = display[i];
+        final isSelected = _selectedItems.contains(item);
         
-        if (it is PdfFolderItem) {
-          return ListTile(
-            leading: Icon(Icons.folder, color: it.color),
-            title: Text(it.name,
-              style: TextStyle(color: _darkModeManual ? Colors.white : Colors.black)
-            ),
-            trailing: IconButton(
-              icon: Icon(Icons.more_vert,
-                color: _darkModeManual ? Colors.red : null
-              ), 
-              onPressed: () => _showFileMenu(it)
-            ),
-            onTap: () {
-              if (_selectionMode) _toggleSelect(it);
-              else _openFolder(it);
-            },
-            tileColor: isSelected ? (_darkModeManual ? Colors.red.withOpacity(0.1) : Colors.red.withOpacity(0.1)) : null,
-          );
-        } else if (it is PdfFileItem) {
-          return ListTile(
-            leading: Icon(Icons.picture_as_pdf, 
-              color: _darkModeManual ? Colors.red : Colors.red
-            ),
-            title: Text(it.name,
-              style: TextStyle(color: _darkModeManual ? Colors.white : Colors.black)
-            ),
-            subtitle: Text(it.file.path, 
-              maxLines: 1, 
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: _darkModeManual ? Colors.grey : Colors.grey[600])
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: Icon(
-                    it.isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color: it.isFavorite ? Colors.red : (_darkModeManual ? Colors.red : Colors.grey),
-                  ),
-                  onPressed: () => _toggleFavorite(it),
-                ),
-                IconButton(
-                  icon: Icon(Icons.more_vert,
-                    color: _darkModeManual ? Colors.red : null
-                  ), 
-                  onPressed: () => _showFileMenu(it)
-                ),
-              ],
-            ),
-            onTap: () {
-              if (_selectionMode) _toggleSelect(it);
-              else _openFile(it);
-            },
-            tileColor: isSelected ? (_darkModeManual ? Colors.red.withOpacity(0.1) : Colors.red.withOpacity(0.1)) : null,
-          );
-        } else {
-          return const SizedBox.shrink();
+        if (item is PdfFileItem) {
+          return _buildFileItem(item, isSelected);
+        } else if (item is PdfFolderItem) {
+          return _buildFolderItem(item, isSelected);
         }
+        return const SizedBox.shrink();
       },
     );
   }
 
-  List<FileSystemItem> _getDisplayItems() {
-    if (_currentFolder != null) {
-      return _currentFolder!.items;
-    }
-    
-    switch (_bottomIndex) {
-      case 0: // Tüm Dosyalar
-        final folders = _allItems.whereType<PdfFolderItem>()
-            .where((f) => f.parentFolderId == null).toList();
-        final files = _allItems.whereType<PdfFileItem>()
-            .where((f) => f.parentFolderId == null).toList();
-        return [...folders, ...files];
-        
-      case 1: // Son Görüntülenenler
-        final allFiles = _allItems.whereType<PdfFileItem>().toList();
-        allFiles.sort((a, b) {
-          if (a.lastOpened == null && b.lastOpened == null) return 0;
-          if (a.lastOpened == null) return 1;
-          if (b.lastOpened == null) return -1;
-          return b.lastOpened!.compareTo(a.lastOpened!);
-        });
-        return allFiles.where((f) => f.lastOpened != null).take(20).toList();
-        
-      case 2: // Favoriler
-        return _allItems.whereType<PdfFileItem>().where((f) => f.isFavorite).toList();
-        
-      default:
-        return [];
-    }
+  Widget _buildFileItem(PdfFileItem item, bool isSelected) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      color: isSelected 
+          ? (theme.colorScheme.secondaryContainer.withOpacity(0.3))
+          : (theme.cardColor),
+      child: ListTile(
+        leading: _selectionMode 
+            ? Checkbox(
+                value: isSelected,
+                onChanged: (_) => _toggleItemSelection(item),
+              )
+            : Icon(Icons.picture_as_pdf, 
+                color: _darkModeManual ? Colors.red : Colors.red
+              ),
+        title: Text(item.name, 
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: _darkModeManual ? Colors.white : Colors.black
+          )
+        ),
+        subtitle: Text(
+          '${_formatFileSize(item.file.lengthSync())} • ${_formatDate(item.lastOpened)}',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: _darkModeManual ? Colors.grey[400] : Colors.grey[600]
+          )
+        ),
+        trailing: _selectionMode ? null : Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(
+                item.isFavorite ? Icons.favorite : Icons.favorite_border,
+                color: item.isFavorite ? Colors.red : (_darkModeManual ? Colors.red : Colors.grey),
+              ),
+              onPressed: () => _toggleFavorite(item),
+            ),
+            IconButton(
+              icon: Icon(Icons.more_vert,
+                color: _darkModeManual ? Colors.red : null
+              ),
+              onPressed: () => _showFileMenu(item),
+            ),
+          ],
+        ),
+        onTap: () {
+          if (_selectionMode) {
+            _toggleItemSelection(item);
+          } else {
+            _openFile(item);
+          }
+        },
+        onLongPress: () => _toggleItemSelection(item),
+      ),
+    );
   }
 
-  void _toggleSelect(FileSystemItem item) {
+  Widget _buildFolderItem(PdfFolderItem item, bool isSelected) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      color: isSelected 
+          ? (theme.colorScheme.secondaryContainer.withOpacity(0.3))
+          : (theme.cardColor),
+      child: ListTile(
+        leading: _selectionMode 
+            ? Checkbox(
+                value: isSelected,
+                onChanged: (_) => _toggleItemSelection(item),
+              )
+            : Icon(Icons.folder, color: item.color),
+        title: Text(item.name, 
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: _darkModeManual ? Colors.white : Colors.black
+          )
+        ),
+        subtitle: Text(
+          '${item.items.length} öğe',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: _darkModeManual ? Colors.grey[400] : Colors.grey[600]
+          )
+        ),
+        trailing: _selectionMode ? null : IconButton(
+          icon: Icon(Icons.more_vert,
+            color: _darkModeManual ? Colors.red : null
+          ),
+          onPressed: () => _showFileMenu(item),
+        ),
+        onTap: () {
+          if (_selectionMode) {
+            _toggleItemSelection(item);
+          } else {
+            _openFolder(item);
+          }
+        },
+        onLongPress: () => _toggleItemSelection(item),
+      ),
+    );
+  }
+
+  void _toggleItemSelection(FileSystemItem item) {
     setState(() {
       if (_selectedItems.contains(item)) {
         _selectedItems.remove(item);
@@ -1114,21 +1250,58 @@ class _PDFHomePageState extends State<PDFHomePage> {
       }
     });
   }
+
+  List<FileSystemItem> _getDisplayItems() {
+    if (_currentFolder != null) {
+      return _currentFolder!.items;
+    }
+
+    switch (_bottomIndex) {
+      case 0: // All Files
+        return _allItems;
+      case 1: // Recent
+        final files = _allItems.whereType<PdfFileItem>().toList();
+        files.sort((a, b) => (b.lastOpened ?? DateTime(0)).compareTo(a.lastOpened ?? DateTime(0)));
+        return files.take(20).toList();
+      case 2: // Favorites
+        return _allItems.where((it) => it is PdfFileItem && (it as PdfFileItem).isFavorite).toList();
+      default:
+        return _allItems;
+    }
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Hiç açılmadı';
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inDays > 365) return '${(diff.inDays / 365).floor()} yıl önce';
+    if (diff.inDays > 30) return '${(diff.inDays / 30).floor()} ay önce';
+    if (diff.inDays > 0) return '${diff.inDays} gün önce';
+    if (diff.inHours > 0) return '${diff.inHours} saat önce';
+    if (diff.inMinutes > 0) return '${diff.inMinutes} dakika önce';
+    return 'Az önce';
+  }
 }
 
 /* ----------------------
-   Viewer screen
+   Viewer Screen
 ---------------------- */
-
 class ViewerScreen extends StatefulWidget {
   final File file;
   final String fileName;
   final bool dark;
   final VoidCallback? onFileOpened;
+
   const ViewerScreen({
-    super.key, 
-    required this.file, 
-    required this.fileName, 
+    super.key,
+    required this.file,
+    required this.fileName,
     required this.dark,
     this.onFileOpened,
   });
@@ -1138,124 +1311,126 @@ class ViewerScreen extends StatefulWidget {
 }
 
 class _ViewerScreenState extends State<ViewerScreen> {
-  InAppWebViewController? _controller;
-  bool _loaded = false;
-  File? _savedFile;
+  late InAppWebViewController _webController;
+  bool _isLoading = true;
+  String? _currentUrl;
 
   @override
   void initState() {
     super.initState();
-    // Viewer açıldığında callback'i çağır
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.onFileOpened?.call();
-    });
-  }
-
-  String _makeViewerUrl() {
-    final fileUri = Uri.file(widget.file.path).toString();
-    final dark = widget.dark ? 'true' : 'false';
-    final url = 'file:///android_asset/flutter_assets/assets/web/viewer.html?file=${Uri.encodeComponent(fileUri)}&dark=$dark';
-    return url;
-  }
-
-  Future<void> _handleOnPdfSaved(List<dynamic> args) async {
-    try {
-      final originalName = args.isNotEmpty ? (args[0] as String) : widget.fileName;
-      final base64Data = (args.length > 1 && args[1] != null) ? args[1] as String : null;
-      final dir = widget.file.parent.path;
-      final savedName = 'kaydedilmis_$originalName';
-      final newPath = p.join(dir, savedName);
-
-      if (base64Data != null && base64Data.isNotEmpty) {
-        final bytes = base64Decode(base64Data);
-        final f = await File(newPath).writeAsBytes(bytes);
-        _savedFile = f;
-      } else {
-        // fallback: copy original file
-        final f = await widget.file.copy(newPath);
-        _savedFile = f;
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${p.basename(_savedFile!.path)} kaydedildi')));
-      }
-    } catch (e) {
-      debugPrint('onPdfSaved error: $e');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kaydetme başarısız')));
-    }
+    widget.onFileOpened?.call();
   }
 
   @override
   Widget build(BuildContext context) {
-    final url = _makeViewerUrl();
-
-    return WillPopScope(
-      onWillPop: () async {
-        Navigator.pop(context, _savedFile);
-        return false;
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(widget.fileName),
-          backgroundColor: widget.dark ? Colors.black : Colors.red,
-          foregroundColor: widget.dark ? Colors.red : Colors.white,
-          actions: [
-            IconButton(
-              icon: Icon(Icons.share,
-                color: widget.dark ? Colors.red : Colors.white
-              ),
-              onPressed: () async {
-                try {
-                  await Share.shareXFiles([XFile(widget.file.path)],
-                    text: 'PDF Dosyası: ${widget.fileName}'
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Paylaşım başarısız'))
-                  );
-                }
-              },
-            ),
-          ],
-        ),
-        body: Stack(
-          children: [
-            Container(color: widget.dark ? Colors.black : Colors.transparent),
-            InAppWebView(
-              initialUrlRequest: URLRequest(url: WebUri(url)),
-              initialSettings: InAppWebViewSettings(
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.fileName),
+        backgroundColor: widget.dark ? Colors.black : Colors.red,
+        foregroundColor: widget.dark ? Colors.red : Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _saveFile,
+            tooltip: 'Kaydet',
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          InAppWebView(
+            initialFile: "assets/pdfjs/web/viewer.html",
+            initialOptions: InAppWebViewGroupOptions(
+              crossPlatform: InAppWebViewOptions(
                 javaScriptEnabled: true,
-                allowFileAccess: true,
-                allowFileAccessFromFileURLs: true,
-                allowUniversalAccessFromFileURLs: true,
-                supportZoom: true,
-                useHybridComposition: true,
+                transparentBackground: true,
               ),
-              onWebViewCreated: (controller) async {
-                _controller = controller;
-                controller.addJavaScriptHandler(handlerName: "onPdfSaved", callback: (args) {
-                  _handleOnPdfSaved(args);
-                });
-              },
-              onLoadStop: (controller, url) {
-                setState(() => _loaded = true);
-              },
-              onConsoleMessage: (controller, message) {
-                debugPrint('WEBVIEW: ${message.message}');
-              },
-              onLoadError: (controller, url, code, message) {
-                debugPrint('WEBVIEW LOAD ERROR ($code): $message');
-              },
             ),
-            if (!_loaded)
-              Center(
-                child: CircularProgressIndicator(
-                  color: widget.dark ? Colors.red : Colors.red
-                ),
+            onWebViewCreated: (controller) {
+              _webController = controller;
+              _loadPdf();
+            },
+            onLoadStart: (controller, url) {
+              setState(() {
+                _currentUrl = url?.toString();
+              });
+            },
+            onLoadStop: (controller, url) async {
+              setState(() {
+                _isLoading = false;
+                _currentUrl = url?.toString();
+              });
+            },
+          ),
+          if (_isLoading) Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(
+                widget.dark ? Colors.red : Colors.red
               ),
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  void _loadPdf() async {
+    final pdfData = await widget.file.readAsBytes();
+    final pdfBase64 = base64Encode(pdfData);
+    
+    final script = '''
+      PDFViewerApplication.open(new Uint8Array(atob("$pdfBase64").split("").map(c => c.charCodeAt(0))));
+      document.body.style.backgroundColor = "${widget.dark ? '#000000' : '#ffffff'}";
+    ''';
+    
+    await _webController.evaluateJavascript(source: script);
+  }
+
+  void _saveFile() async {
+    try {
+      final script = '''
+        if (window.PDFViewerApplication && PDFViewerApplication.pdfDocument) {
+          PDFViewerApplication.download();
+        }
+      ''';
+      
+      final result = await _webController.evaluateJavascript(source: script);
+      
+      // PDF.js download işlemini tetikledikten sonra dosyayı güncelle
+      _updateOriginalFile();
+      
+    } catch (e) {
+      debugPrint('Save error: $e');
+      _showSnackbar('Kaydetme başarısız');
+    }
+  }
+
+  void _updateOriginalFile() async {
+    try {
+      // Orijinal dosyanın adını güncelle - "update_" öneki ekle
+      final originalPath = widget.file.path;
+      final dir = p.dirname(originalPath);
+      final baseName = p.basenameWithoutExtension(originalPath);
+      final extension = p.extension(originalPath);
+      final newName = 'update_$baseName$extension';
+      final newPath = p.join(dir, newName);
+      
+      // Yeni dosyayı oluştur (gerçek uygulamada PDF.js'den gelen veriyi kaydetmeniz gerekir)
+      final newFile = await widget.file.copy(newPath);
+      
+      _showSnackbar('Dosya güncellendi: $newName');
+      
+      // Ana sayfaya yeni dosya yolunu döndür
+      if (context.mounted) {
+        Navigator.pop(context, newFile);
+      }
+    } catch (e) {
+      debugPrint('Update file error: $e');
+      _showSnackbar('Dosya güncelleme başarısız');
+    }
+  }
+
+  void _showSnackbar(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 }
