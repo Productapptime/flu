@@ -34,6 +34,7 @@ class PDFApp extends StatelessWidget {
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.red,
           foregroundColor: Colors.white,
+          toolbarHeight: 48, // Daha ince app bar
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           selectedLabelStyle: TextStyle(fontSize: 12, color: Colors.red),
@@ -54,6 +55,7 @@ class PDFApp extends StatelessWidget {
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.black,
           foregroundColor: Colors.red,
+          toolbarHeight: 48, // Daha ince app bar
         ),
         iconTheme: IconThemeData(color: Colors.red),
         bottomNavigationBarTheme: BottomNavigationBarThemeData(
@@ -899,6 +901,16 @@ class _PDFHomePageState extends State<PDFHomePage> {
               }
             ),
             ListTile(
+              leading: Icon(Icons.create_new_folder,
+                color: _darkModeManual ? Colors.red : null
+              ), 
+              title: const Text('Klasör Oluştur'), 
+              onTap: () { 
+                Navigator.pop(context); 
+                _createFolder(); 
+              }
+            ),
+            ListTile(
               leading: Icon(Icons.info,
                 color: _darkModeManual ? Colors.red : null
               ), 
@@ -1358,6 +1370,22 @@ class _ViewerScreenState extends State<ViewerScreen> {
     }
   }
 
+  Future<void> _printFile() async {
+    try {
+      final pdfData = await widget.file.readAsBytes();
+      await Printing.layoutPdf(
+        onLayout: (format) => pdfData,
+      );
+    } catch (e) {
+      debugPrint('Print error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Yazdırma başarısız'))
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final url = _makeViewerUrl();
@@ -1372,7 +1400,14 @@ class _ViewerScreenState extends State<ViewerScreen> {
           title: Text(widget.fileName),
           backgroundColor: widget.dark ? Colors.black : Colors.red,
           foregroundColor: widget.dark ? Colors.red : Colors.white,
+          toolbarHeight: 48, // Daha ince app bar
           actions: [
+            IconButton(
+              icon: Icon(Icons.print,
+                color: widget.dark ? Colors.red : Colors.white
+              ),
+              onPressed: _printFile,
+            ),
             IconButton(
               icon: Icon(Icons.share,
                 color: widget.dark ? Colors.red : Colors.white
