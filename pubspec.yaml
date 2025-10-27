@@ -10,7 +10,6 @@ dependencies:
     sdk: flutter
   file_picker: ^8.0.6
   flutter_inappwebview: ^6.1.5
-  local_auth: ^2.1.5  # Bu satırı ekledim
 
 dev_dependencies:
   flutter_test:
