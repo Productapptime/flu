@@ -26,6 +26,13 @@ flutter:
   uses-material-design: true
 
   assets:
+     # Araçlar
+    - assets/tools.html
+    - assets/pdf.worker.min.js
+    - assets/pdf.min.js
+    - assets/pdf-lib.min.js
+    - assets/tesseract.min.js
+    
     # PDF.js core dosyaları
     - assets/build/pdf.mjs
     - assets/build/pdf.worker.mjs
