@@ -14,6 +14,9 @@ dependencies:
   path: ^1.8.3
   share_plus: ^7.0.1
   printing: ^5.9.1
+  pdf: ^3.10.4        
+  image_picker: ^1.0.4 
+  archive: ^3.3.6      
 
 dev_dependencies:
   flutter_test:
