@@ -1087,7 +1087,28 @@ class _PDFHomePageState extends State<PDFHomePage> {
       display = display.where((it) => it.name.toLowerCase().contains(q)).toList();
     }
 
-    if (_bottomIndex == 3) {
+
+    // main.dart içinde _PDFHomePageState class'ında
+
+Widget _buildBody() {
+  // ✅ BU SATIRLARI EKLE - ToolsPage için
+  if (_bottomIndex == 3) {
+    return ToolsPage(darkMode: _darkModeManual);
+  }
+  
+  List<FileSystemItem> display = _getDisplayItems();
+  
+  if (_searchController.text.isNotEmpty) {
+    final q = _searchController.text.toLowerCase();
+    display = display.where((it) => it.name.toLowerCase().contains(q)).toList();
+  }
+
+  // ❌ ESKİ Tools sekmesi kodu - BUNU SİL veya YORUM YAP
+ 
+
+
+    
+  /*  if (_bottomIndex == 3) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1106,7 +1127,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
           ],
         ),
       );
-    }
+    } */
 
     if (display.isEmpty) {
       return Center(
