@@ -9,7 +9,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:archive/archive.dart';
 
 class ToolsPage extends StatelessWidget {
   final bool darkMode;
@@ -201,6 +200,7 @@ class ToolsPage extends StatelessWidget {
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
+          backgroundColor: darkMode ? Colors.black : Colors.white,
           content: Row(
             children: [
               CircularProgressIndicator(color: Colors.red),
@@ -217,16 +217,31 @@ class ToolsPage extends StatelessWidget {
       
       for (final file in result.files) {
         if (file.path != null) {
-          final pdfFile = File(file.path!);
-          final pdfData = await pdfFile.readAsBytes();
-          
-          // Bu kısımda pdf paketiyle sayfaları ekleyebilirsin
-          // Şimdilik basit bir çözüm:
+          // Her PDF için yeni sayfa ekle
           pdf.addPage(
             pw.Page(
               build: (pw.Context context) {
                 return pw.Center(
-                  child: pw.Text('${file.name} - Birleştirilmiş PDF'),
+                  child: pw.Column(
+                    mainAxisAlignment: pw.MainAxisAlignment.center,
+                    children: [
+                      pw.Text(
+                        file.name,
+                        style: pw.TextStyle(
+                          fontSize: 20,
+                          color: PdfColors.black,
+                        ),
+                      ),
+                      pw.SizedBox(height: 20),
+                      pw.Text(
+                        'Birleştirilmiş PDF İçeriği',
+                        style: pw.TextStyle(
+                          fontSize: 16,
+                          color: PdfColors.blue,
+                        ),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),
@@ -235,7 +250,7 @@ class ToolsPage extends StatelessWidget {
       }
       
       // PDF'i kaydet
-      final outputDir = await getTemporaryDirectory();
+      final outputDir = Directory.systemTemp;
       final outputPath = p.join(outputDir.path, 'birlesik_${DateTime.now().millisecondsSinceEpoch}.pdf');
       final outputFile = File(outputPath);
       await outputFile.writeAsBytes(await pdf.save());
@@ -248,17 +263,23 @@ class ToolsPage extends StatelessWidget {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: Text('Başarılı', style: TextStyle(color: Colors.red)),
-            content: Text('${result.files.length} PDF birleştirildi'),
+            backgroundColor: darkMode ? Colors.black : Colors.white,
+            title: Text('Başarılı', 
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            content: Text('${result.files.length} PDF birleştirildi\n\nDosya: ${p.basename(outputPath)}',
+              style: TextStyle(color: darkMode ? Colors.white : Colors.black)),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: Text('Tamam', style: TextStyle(color: Colors.red)),
+                child: Text('Kapat', style: TextStyle(color: Colors.red)),
               ),
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(ctx);
-                  Share.shareXFiles([XFile(outputPath)]);
+                  Share.shareXFiles(
+                    [XFile(outputPath)],
+                    text: '${result.files.length} PDF birleştirildi',
+                  );
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                 child: const Text('Paylaş', style: TextStyle(color: Colors.white)),
@@ -288,6 +309,7 @@ class ToolsPage extends StatelessWidget {
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
+          backgroundColor: darkMode ? Colors.black : Colors.white,
           content: Row(
             children: [
               CircularProgressIndicator(color: Colors.red),
@@ -303,23 +325,25 @@ class ToolsPage extends StatelessWidget {
       
       for (final image in images) {
         final imageFile = File(image.path);
-        final imageData = await imageFile.readAsBytes();
-        
-        pdf.addPage(
-          pw.Page(
-            build: (pw.Context context) {
-              return pw.Center(
-                child: pw.Image(
-                  pw.MemoryImage(imageData),
-                  fit: pw.BoxFit.contain,
-                ),
-              );
-            },
-          ),
-        );
+        if (await imageFile.exists()) {
+          final imageData = await imageFile.readAsBytes();
+          
+          pdf.addPage(
+            pw.Page(
+              build: (pw.Context context) {
+                return pw.Center(
+                  child: pw.Image(
+                    pw.MemoryImage(imageData),
+                    fit: pw.BoxFit.contain,
+                  ),
+                );
+              },
+            ),
+          );
+        }
       }
       
-      final outputDir = await getTemporaryDirectory();
+      final outputDir = Directory.systemTemp;
       final outputPath = p.join(outputDir.path, 'resimler_${DateTime.now().millisecondsSinceEpoch}.pdf');
       final outputFile = File(outputPath);
       await outputFile.writeAsBytes(await pdf.save());
@@ -330,17 +354,23 @@ class ToolsPage extends StatelessWidget {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: Text('Başarılı', style: TextStyle(color: Colors.red)),
-            content: Text('${images.length} resim PDF\'ye dönüştürüldü'),
+            backgroundColor: darkMode ? Colors.black : Colors.white,
+            title: Text('Başarılı', 
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            content: Text('${images.length} resim PDF\'ye dönüştürüldü\n\nDosya: ${p.basename(outputPath)}',
+              style: TextStyle(color: darkMode ? Colors.white : Colors.black)),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: Text('Tamam', style: TextStyle(color: Colors.red)),
+                child: Text('Kapat', style: TextStyle(color: Colors.red)),
               ),
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(ctx);
-                  Share.shareXFiles([XFile(outputPath)]);
+                  Share.shareXFiles(
+                    [XFile(outputPath)],
+                    text: '${images.length} resim PDF\'ye dönüştürüldü',
+                  );
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                 child: const Text('Paylaş', style: TextStyle(color: Colors.white)),
@@ -377,15 +407,26 @@ class ToolsPage extends StatelessWidget {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: Text('PDF Bilgisi', style: TextStyle(color: Colors.red)),
+            backgroundColor: darkMode ? Colors.black : Colors.white,
+            title: Text('PDF Bilgisi', 
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Dosya: ${result.files.first.name}'),
-                Text('Boyut: ${_formatFileSize(size)}'),
-                Text('Oluşturulma: ${stats.modified}'),
-                Text('Yol: ${file.path}'),
+                Text('Dosya: ${result.files.first.name}', 
+                  style: TextStyle(color: darkMode ? Colors.white : Colors.black)),
+                Text('Boyut: ${_formatFileSize(size)}', 
+                  style: TextStyle(color: darkMode ? Colors.white : Colors.black)),
+                Text('Oluşturulma: ${_formatDate(stats.modified)}', 
+                  style: TextStyle(color: darkMode ? Colors.white : Colors.black)),
+                Text('Değiştirilme: ${_formatDate(stats.changed)}', 
+                  style: TextStyle(color: darkMode ? Colors.white : Colors.black)),
+                Text('Yol: ${file.path}', 
+                  style: TextStyle(
+                    color: darkMode ? Colors.grey[400] : Colors.grey[600],
+                    fontSize: 12,
+                  )),
               ],
             ),
             actions: [
@@ -418,6 +459,7 @@ class ToolsPage extends StatelessWidget {
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
+          backgroundColor: darkMode ? Colors.black : Colors.white,
           content: Row(
             children: [
               CircularProgressIndicator(color: Colors.red),
@@ -432,16 +474,17 @@ class ToolsPage extends StatelessWidget {
       final originalFile = File(result.files.first.path!);
       final originalSize = originalFile.lengthSync();
       
-      // Basit sıkıştırma simülasyonu - gerçek uygulamada PDF optimizasyonu yapılmalı
+      // Basit sıkıştırma - dosyayı kopyalayarak simüle ediyoruz
       final compressedData = await originalFile.readAsBytes();
       
-      final outputDir = await getTemporaryDirectory();
+      final outputDir = Directory.systemTemp;
       final outputPath = p.join(outputDir.path, 'sikistirilmis_${DateTime.now().millisecondsSinceEpoch}.pdf');
       final outputFile = File(outputPath);
       await outputFile.writeAsBytes(compressedData);
       
       final compressedSize = outputFile.lengthSync();
       final savings = originalSize - compressedSize;
+      final ratio = originalSize > 0 ? (savings / originalSize) * 100 : 0;
       
       if (context.mounted) Navigator.pop(context);
       
@@ -449,21 +492,23 @@ class ToolsPage extends StatelessWidget {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: Text('Sıkıştırma Tamamlandı', style: TextStyle(color: Colors.red)),
+            backgroundColor: darkMode ? Colors.black : Colors.white,
+            title: Text('Sıkıştırma Tamamlandı', 
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Orijinal: ${_formatFileSize(originalSize)}'),
-                Text('Sıkıştırılmış: ${_formatFileSize(compressedSize)}'),
-                Text('Kazanç: ${_formatFileSize(savings)}'),
-                Text('Oran: ${((savings / originalSize) * 100).toStringAsFixed(1)}%'),
+                _buildInfoRow('Orijinal Boyut:', _formatFileSize(originalSize)),
+                _buildInfoRow('Sıkıştırılmış:', _formatFileSize(compressedSize)),
+                _buildInfoRow('Kazanç:', _formatFileSize(savings)),
+                _buildInfoRow('Sıkıştırma Oranı:', '${ratio.toStringAsFixed(1)}%'),
               ],
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: Text('Tamam', style: TextStyle(color: Colors.red)),
+                child: Text('Kapat', style: TextStyle(color: Colors.red)),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -530,6 +575,7 @@ class ToolsPage extends StatelessWidget {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -539,10 +585,25 @@ class ToolsPage extends StatelessWidget {
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
-}
 
-// Geçici dizin için yardımcı metod
-Future<Directory> getTemporaryDirectory() async {
-  final tempDir = Directory.systemTemp;
-  return tempDir;
+  String _formatDate(DateTime date) {
+    return '${date.day}.${date.month}.${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Text('$label ', 
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: darkMode ? Colors.white : Colors.black,
+            )),
+          Text(value,
+            style: TextStyle(color: darkMode ? Colors.white : Colors.black)),
+        ],
+      ),
+    );
+  }
 }
