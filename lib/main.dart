@@ -8,10 +8,14 @@ import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'tools.dart';  // ✅ BU SATIRI EKLE
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  if (Platform.isAndroid) {
+    await AndroidInAppWebViewController.setWebContentsDebuggingEnabled(true);
+  }
+  
   runApp(const PDFApp());
 }
 
@@ -841,7 +845,14 @@ class _PDFHomePageState extends State<PDFHomePage> {
     _notify('${value ? 'Karanlık' : 'Açık'} mod ${value ? 'açıldı' : 'kapatıldı'}');
   }
 
-  // ✅ METODLARI DOĞRU SIRAYA ALALIM
+  // ✅ Tools sayfasını açma metodu
+  void _openToolsPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ToolsWebView(darkMode: _darkModeManual)),
+    );
+  }
+
   List<FileSystemItem> _getDisplayItems() {
     if (_currentFolder != null) {
       return _currentFolder!.items;
@@ -1100,6 +1111,11 @@ class _PDFHomePageState extends State<PDFHomePage> {
             _bottomIndex = i; 
             _selectionMode = false; 
             _selectedItems.clear(); 
+            
+            // ✅ Tools sayfasına tıklanırsa aç
+            if (i == 3) {
+              _openToolsPage();
+            }
           }); 
         },
         selectedItemColor: Colors.red,
@@ -1212,9 +1228,33 @@ class _PDFHomePageState extends State<PDFHomePage> {
   }
 
   Widget _buildBody() {
-    // ✅ BU SATIRLARI EKLE - ToolsPage için
+    // ✅ Tools sayfasına tıklandığında boş bir sayfa göster (çünkü ToolsWebView ayrı açılacak)
     if (_bottomIndex == 3) {
-      return ToolsPage(darkMode: _darkModeManual);
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.build, size: 64, 
+              color: _darkModeManual ? Colors.red : Colors.grey[400]
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Araçlar Sayfası',
+              style: TextStyle(
+                fontSize: 18, 
+                color: _darkModeManual ? Colors.red : Colors.grey
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Araçları kullanmak için yukarıdaki butona tıklayın',
+              style: TextStyle(
+                color: _darkModeManual ? Colors.red : Colors.grey
+              ),
+            ),
+          ],
+        ),
+      );
     }
     
     List<FileSystemItem> display = _getDisplayItems();
@@ -1268,7 +1308,78 @@ class _PDFHomePageState extends State<PDFHomePage> {
       },
     );
   }
-} // ✅ BU SÜSLÜ PARANTEZ EKSİKTİ
+}
+
+/* ----------------------
+   Tools WebView - YENİ SINIF
+---------------------- */
+
+class ToolsWebView extends StatefulWidget {
+  final bool darkMode;
+  const ToolsWebView({super.key, required this.darkMode});
+
+  @override
+  State<ToolsWebView> createState() => _ToolsWebViewState();
+}
+
+class _ToolsWebViewState extends State<ToolsWebView> {
+  InAppWebViewController? _controller;
+  bool _loaded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = 'file:///android_asset/flutter_assets/assets/tools.html';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('PDF Araçları'),
+        backgroundColor: widget.darkMode ? Colors.black : Colors.red,
+        foregroundColor: widget.darkMode ? Colors.red : Colors.white,
+        toolbarHeight: 48,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back,
+            color: widget.darkMode ? Colors.red : Colors.white
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Stack(
+        children: [
+          Container(color: widget.darkMode ? Colors.black : Colors.transparent),
+          InAppWebView(
+            initialUrlRequest: URLRequest(url: WebUri(url)),
+            initialSettings: InAppWebViewSettings(
+              javaScriptEnabled: true,
+              allowFileAccess: true,
+              allowFileAccessFromFileURLs: true,
+              allowUniversalAccessFromFileURLs: true,
+              supportZoom: true,
+              useHybridComposition: true,
+            ),
+            onWebViewCreated: (controller) {
+              _controller = controller;
+            },
+            onLoadStop: (controller, url) {
+              setState(() => _loaded = true);
+            },
+            onConsoleMessage: (controller, message) {
+              debugPrint('TOOLS WEBVIEW: ${message.message}');
+            },
+            onLoadError: (controller, url, code, message) {
+              debugPrint('TOOLS WEBVIEW LOAD ERROR ($code): $message');
+            },
+          ),
+          if (!_loaded)
+            Center(
+              child: CircularProgressIndicator(
+                color: widget.darkMode ? Colors.red : Colors.red
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
 
 /* ----------------------
    Viewer Screen - AYRI SINIF OLARAK
