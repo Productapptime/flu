@@ -219,36 +219,16 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
 
   Future<void> _saveFile(String fileName, String base64Data) async {
     try {
-      // Depolama iznini kontrol et
-      var status = await Permission.storage.status;
-      if (!status.isGranted) {
-        status = await Permission.storage.request();
-        if (!status.isGranted) {
-          _showSnackBar('Dosya kaydetmek için depolama izni gerekiyor');
-          return;
-        }
+      print('Dosya kaydediliyor: $fileName');
+      print('Base64 veri uzunluğu: ${base64Data.length}');
+
+      // Android 10+ için MANAGE_EXTERNAL_STORAGE iznini kontrol et
+      if (await Permission.manageExternalStorage.isGranted) {
+        await _saveToDownloads(fileName, base64Data);
+      } else {
+        // MANAGE_EXTERNAL_STORAGE izni yoksa uygulama dizinine kaydet
+        await _saveToAppDirectory(fileName, base64Data);
       }
-
-      // Download dizinini al
-      final directory = await getExternalStorageDirectory();
-      final downloadDir = Directory('${directory?.path}/Download');
-      
-      // Download dizini yoksa oluştur
-      if (!await downloadDir.exists()) {
-        await downloadDir.create(recursive: true);
-      }
-
-      // Dosya yolunu oluştur
-      final file = File('${downloadDir.path}/$fileName');
-      
-      // Base64 veriyi decode et ve dosyaya yaz
-      final bytes = base64.decode(base64Data);
-      await file.writeAsBytes(bytes);
-
-      _showSnackBar('Dosya başarıyla kaydedildi: ${file.path}');
-      
-      print('Dosya kaydedildi: ${file.path}');
-      print('Dosya boyutu: ${bytes.length} bytes');
 
     } catch (e) {
       print('Dosya kaydetme hatası: $e');
@@ -256,14 +236,84 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
     }
   }
 
+  Future<void> _saveToDownloads(String fileName, String base64Data) async {
+    try {
+      // Download dizinini al
+      Directory? downloadsDir;
+      if (Platform.isAndroid) {
+        downloadsDir = Directory('/storage/emulated/0/Download');
+        if (!await downloadsDir.exists()) {
+          downloadsDir = await getExternalStorageDirectory();
+        }
+      } else {
+        downloadsDir = await getDownloadsDirectory();
+      }
+
+      if (downloadsDir == null) {
+        throw Exception('Download dizini bulunamadı');
+      }
+
+      // Dosya yolunu oluştur
+      final file = File('${downloadsDir.path}/$fileName');
+      
+      // Base64 veriyi decode et ve dosyaya yaz
+      final bytes = base64.decode(base64Data);
+      await file.writeAsBytes(bytes);
+
+      _showSnackBar('Dosya başarıyla kaydedildi: ${file.path}');
+      print('Dosya kaydedildi: ${file.path}');
+      print('Dosya boyutu: ${bytes.length} bytes');
+
+    } catch (e) {
+      print('Download kaydetme hatası: $e');
+      // Fallback: uygulama dizinine kaydet
+      await _saveToAppDirectory(fileName, base64Data);
+    }
+  }
+
+  Future<void> _saveToAppDirectory(String fileName, String base64Data) async {
+    try {
+      // Uygulama dizinini al
+      final appDir = await getApplicationDocumentsDirectory();
+      final saveDir = Directory('${appDir.path}/PDF_Manager_Plus');
+      
+      // Dizini oluştur
+      if (!await saveDir.exists()) {
+        await saveDir.create(recursive: true);
+      }
+
+      // Dosya yolunu oluştur
+      final file = File('${saveDir.path}/$fileName');
+      
+      // Base64 veriyi decode et ve dosyaya yaz
+      final bytes = base64.decode(base64Data);
+      await file.writeAsBytes(bytes);
+
+      _showSnackBar('Dosya uygulama dizinine kaydedildi: ${file.path}');
+      print('Dosya uygulama dizinine kaydedildi: ${file.path}');
+      print('Dosya boyutu: ${bytes.length} bytes');
+
+    } catch (e) {
+      print('Uygulama dizini kaydetme hatası: $e');
+      rethrow;
+    }
+  }
+
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 3),
-        backgroundColor: Colors.green,
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 4),
+          backgroundColor: Colors.green,
+          action: SnackBarAction(
+            label: 'Tamam',
+            onPressed: () {},
+            textColor: Colors.white,
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -315,7 +365,10 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
                     if (args.length >= 2) {
                       final fileName = args[0] as String;
                       final base64Data = args[1] as String;
+                      print('JavaScript handler çağrıldı: $fileName');
                       _saveFile(fileName, base64Data);
+                    } else {
+                      print('JavaScript handler: Yetersiz argüman - ${args.length}');
                     }
                   },
                 );
@@ -339,39 +392,47 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
                 
                 // JavaScript handler'ını HTML'e enjekte et
                 controller.evaluateJavascript(source: '''
-                  // Flutter handler kaydı
-                  if (window.flutter_inappwebview) {
-                    window.flutter_inappwebview.callHandler = function(handlerName, ...args) {
-                      if (handlerName === 'saveFile') {
-                        window.flutter_inappwebview.handlerPost(JSON.stringify({
-                          name: handlerName,
-                          args: args
-                        }));
+                  // Global saveFile fonksiyonu
+                  window.saveFileToFlutter = function(fileName, base64Data) {
+                    console.log('saveFileToFlutter çağrıldı:', fileName, 'base64 uzunluk:', base64Data.length);
+                    
+                    if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                      try {
+                        window.flutter_inappwebview.callHandler('saveFile', fileName, base64Data);
+                        console.log('Handler başarıyla çağrıldı');
+                        return true;
+                      } catch (e) {
+                        console.error('Handler çağrı hatası:', e);
+                        return false;
                       }
-                    };
-                  }
-                  
-                  // Mevcut saveFile fonksiyonlarını güncelle
-                  function saveFileToFlutter(fileName, base64Data) {
-                    if (window.flutter_inappwebview) {
-                      window.flutter_inappwebview.callHandler('saveFile', fileName, base64Data);
-                      return true;
+                    } else {
+                      console.error('Flutter handler bulunamadı');
+                      alert('Flutter bağlantısı kurulamadı. Lütfen sayfayı yenileyin.');
+                      return false;
                     }
-                    return false;
-                  }
-                  
-                  // Tüm kaydetme butonları için global handler
-                  document.addEventListener('click', function(e) {
-                    if (e.target.id === 'mergeBtn' || 
-                        e.target.id === 'splitBtn' || 
-                        e.target.id === 'downloadBtn' || 
-                        e.target.id === 'compressBtn' || 
-                        e.target.id === 'ocrBtn' || 
-                        e.target.id === 'convertBtn' ||
-                        e.target.classList.contains('download-btn')) {
-                      console.log('Kaydet butonu tıklandı:', e.target.id);
+                  };
+
+                  // Mevcut butonlara event listener ekle
+                  setTimeout(function() {
+                    // Merge butonu
+                    const mergeBtn = document.getElementById('mergeBtn');
+                    if (mergeBtn) {
+                      mergeBtn.addEventListener('click', function() {
+                        console.log('Merge butonu tıklandı');
+                      });
                     }
-                  });
+
+                    // Split butonu
+                    const splitBtn = document.getElementById('splitBtn');
+                    if (splitBtn) {
+                      splitBtn.addEventListener('click', function() {
+                        console.log('Split butonu tıklandı');
+                      });
+                    }
+
+                    // Diğer butonlar...
+                    console.log('JavaScript enjeksiyonu tamamlandı');
+                  }, 1000);
                 ''');
               },
               onLoadError: (controller, url, code, message) {
@@ -381,7 +442,7 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
                 print('WebView Load Error: $code - $message');
               },
               onConsoleMessage: (controller, consoleMessage) {
-                print('WebView Console: ${consoleMessage.message}');
+                print('WebView Console [${widget.tool.title}]: ${consoleMessage.message}');
               },
             ),
           ),
