@@ -97,103 +97,53 @@ class _ToolsWebViewState extends State<ToolsWebView> {
     }
   }
 
-  Widget _buildFlutterToolSelector() {
-    return Container(
-      height: 120,
-      decoration: BoxDecoration(
-        color: widget.darkMode ? Colors.grey[900] : Colors.grey[50],
-        border: Border(
-          bottom: BorderSide(
-            color: widget.darkMode 
-                ? Colors.grey[800]!  // ! operator ekleyerek null olmadığını belirtiyoruz
-                : Colors.grey[300]!,
-          ),
-        ),
+  Widget _buildMainPage() {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('PDF Araçları'),
+        backgroundColor: widget.darkMode ? Colors.black : Colors.red,
+        foregroundColor: widget.darkMode ? Colors.red : Colors.white,
+        toolbarHeight: 48,
       ),
-      child: Padding(
+      body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Araçları Seçin:',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: widget.darkMode ? Colors.white : Colors.black,
+            const SizedBox(height: 16),
+            const Center(
+              child: Text(
+                'PDF Araçları Merkezi',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
+            const Center(
+              child: Text(
+                'PDF dosyalarınızı düzenleyin, dönüştürün ve yönetin',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 32),
             Expanded(
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
+              child: GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2, // 2x3 grid
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: 1.2,
+                ),
                 itemCount: _tools.length,
                 itemBuilder: (context, index) {
                   final tool = _tools[index];
-                  final isSelected = _currentTool == tool.id;
-                  
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 12.0),
-                    child: Tooltip(
-                      message: tool.description,
-                      child: InkWell(
-                        onTap: () => _openTool(tool.id),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: 80,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: isSelected 
-                                ? tool.color.withOpacity(0.2)
-                                : widget.darkMode 
-                                    ? Colors.grey[800]!  // ! operator ekleyerek null olmadığını belirtiyoruz
-                                    : Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected ? tool.color : Colors.transparent,
-                              width: 2,
-                            ),
-                            boxShadow: [
-                              if (!widget.darkMode)
-                                BoxShadow(
-                                  color: Colors.black12,
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                tool.icon,
-                                size: 24,
-                                color: isSelected ? tool.color : 
-                                    widget.darkMode 
-                                        ? Colors.grey[400]!  // ! operator ekleyerek null olmadığını belirtiyoruz
-                                        : Colors.grey[600]!,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                tool.title.split(' ')[0], // Sadece ilk kelime
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                  color: isSelected ? tool.color : 
-                                      widget.darkMode 
-                                          ? Colors.grey[400]!  // ! operator ekleyerek null olmadığını belirtiyoruz
-                                          : Colors.grey[600]!,
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
+                  return _buildToolCard(tool);
                 },
               ),
             ),
@@ -203,31 +153,77 @@ class _ToolsWebViewState extends State<ToolsWebView> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final url = _getCurrentUrl();
+  Widget _buildToolCard(ToolItem tool) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        onTap: () => _openTool(tool.id),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.left: BorderSide(
+              color: tool.color,
+              width: 4,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                tool.icon,
+                size: 32,
+                color: tool.color,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                tool.title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                tool.description,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
+  Widget _buildToolPage() {
     return Scaffold(
       appBar: AppBar(
         title: Text(_getAppBarTitle()),
         backgroundColor: widget.darkMode ? Colors.black : Colors.red,
         foregroundColor: widget.darkMode ? Colors.red : Colors.white,
         toolbarHeight: 48,
-        leading: _currentTool != 'main' 
-            ? IconButton(
-                icon: Icon(
-                  Icons.arrow_back,
-                  color: widget.darkMode ? Colors.red : Colors.white,
-                ),
-                onPressed: _goBack,
-              )
-            : null,
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back,
+            color: widget.darkMode ? Colors.red : Colors.white,
+          ),
+          onPressed: _goBack,
+        ),
       ),
       body: Column(
         children: [
-          // Flutter Tool Selector
-          _buildFlutterToolSelector(),
-          
           // WebView Content
           Expanded(
             child: Stack(
@@ -235,7 +231,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
                 Container(color: widget.darkMode ? Colors.black : Colors.transparent),
                 
                 InAppWebView(
-                  initialUrlRequest: URLRequest(url: WebUri(url)),
+                  initialUrlRequest: URLRequest(url: WebUri(_getCurrentUrl())),
                   initialSettings: InAppWebViewSettings(
                     javaScriptEnabled: true,
                     allowFileAccess: true,
@@ -286,40 +282,13 @@ class _ToolsWebViewState extends State<ToolsWebView> {
           ),
         ],
       ),
-      
-      // Quick Actions - Flutter Floating Action Button
-      floatingActionButton: _currentTool != 'main' 
-          ? FloatingActionButton(
-              onPressed: () {
-                // Tool'a özel hızlı aksiyon
-                _showQuickActionDialog();
-              },
-              backgroundColor: widget.darkMode ? Colors.red : Colors.red,
-              child: const Icon(
-                Icons.bolt,
-                color: Colors.white,
-              ),
-            )
-          : null,
+      // Floating Action Button YOK!
     );
   }
 
-  void _showQuickActionDialog() {
-    final tool = _tools.firstWhere((t) => t.id == _currentTool, orElse: () => _tools[0]);
-    
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('${tool.title} - Hızlı Aksiyonlar'),
-        content: const Text('Bu araç için hızlı işlemler yakında eklenecek.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Kapat'),
-          ),
-        ],
-      ),
-    );
+  @override
+  Widget build(BuildContext context) {
+    return _currentTool == 'main' ? _buildMainPage() : _buildToolPage();
   }
 }
 
