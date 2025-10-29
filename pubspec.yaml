@@ -41,12 +41,20 @@ flutter:
 
   # Varlıkların (assets) tanımlandığı bölüm
   assets:
+    # Tools için
+    - assets/compress.html
+    - assets/merge.html
+    - assets/ocr.html
+    - assets/pdf_to_photo.html
+    - assets/reorder_subtraction.html
+    - assets/split.html
+    
     # --- assets/ altındaki ana dosyalar (29630.jpg görseline göre) ---
     - assets/pdf-lib.min.js
     - assets/pdf.min.js
     - assets/pdf.worker.min.js
     - assets/tesseract.min.js
-    - assets/tools.html
+    
     
     # --- assets/build/ altındaki dosyalar (29632.jpg görseline göre) ---
     - assets/build/pdf.mjs
