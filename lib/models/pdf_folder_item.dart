@@ -1,6 +1,7 @@
 // lib/models/pdf_folder_item.dart
 import 'package:flutter/material.dart';
 import 'file_system_item.dart';
+import 'pdf_file_item.dart'; // ✅ BU IMPORT EKLENDİ
 
 class PdfFolderItem extends FileSystemItem {
   Color color;
