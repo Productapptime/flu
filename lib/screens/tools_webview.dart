@@ -166,9 +166,17 @@ class _ToolsWebViewState extends State<ToolsWebView> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.left: BorderSide(
+            border: Border.all(
               color: tool.color,
-              width: 4,
+              width: 2,
+            ),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                tool.color.withOpacity(0.1),
+                tool.color.withOpacity(0.05),
+              ],
             ),
           ),
           child: Column(
@@ -282,7 +290,6 @@ class _ToolsWebViewState extends State<ToolsWebView> {
           ),
         ],
       ),
-      // Floating Action Button YOK!
     );
   }
 
