@@ -1,959 +1,199 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PDF Araçları Merkezi</title>
-
-<!-- Material Icons -->
-<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-
-<!-- Kütüphaneler - LOCAL -->
-<script src="tesseract.min.js"></script>
-<script src="pdf-lib.min.js"></script>
-<script src="pdf.min.js"></script>
-
-<style>
-:root {
-  --primary: #d32f2f;
-  --primary-dark: #b71c1c;
-  --bg: #ffffff;
-  --card-bg: #fff;
-  --border: #eee;
-  --shadow: 0 4px 10px rgba(0,0,0,0.05);
-}
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: var(--bg);
-  color: #333;
-  padding: 20px;
-}
-
-header {
-  text-align: center;
-  margin-bottom: 30px;
-}
-
-header h1 {
-  color: var(--primary);
-  font-size: 2rem;
-  font-weight: 700;
-}
-
-header p {
-  color: #666;
-  font-size: 1rem;
-}
-
-.tools-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 20px;
-  justify-content: center;
-  max-width: 700px;
-  margin: 0 auto;
-}
-
-.tool-card {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 18px;
-  background: var(--card-bg);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  border-left: 5px solid var(--primary);
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
-
-.tool-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 12px rgba(0,0,0,0.08);
-}
-
-.tool-icon {
-  font-size: 36px;
-  color: var(--primary);
-  flex-shrink: 0;
-}
-
-.tool-info h3 {
-  font-size: 1.1rem;
-  margin-bottom: 4px;
-  color: #111;
-}
-
-.tool-info p {
-  font-size: 0.9rem;
-  color: #666;
-}
-
-.tool-content {
-  display: none;
-  background: var(--card-bg);
-  border-radius: 16px;
-  box-shadow: var(--shadow);
-  padding: 25px;
-  animation: fadeIn 0.5s ease;
-  max-width: 700px;
-  margin: 30px auto;
-}
-
-.tool-content.active {
-  display: block;
-}
-
-@keyframes fadeIn {
-  from {opacity:0; transform:translateY(10px);}
-  to {opacity:1; transform:translateY(0);}
-}
-
-.back-button {
-  background: #666;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 14px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 15px;
-}
-
-button {
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 16px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 600;
-}
-
-button:hover { background: var(--primary-dark); }
-
-.box {
-  background: #fafafa;
-  border-left: 4px solid var(--primary);
-  border-radius: 10px;
-  padding: 15px;
-  margin-top: 15px;
-}
-
-input, select {
-  width: 100%;
-  padding: 10px;
-  margin-top: 8px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-}
-
-.status {
-  background: #f5f5f5;
-  padding: 10px;
-  border-radius: 6px;
-  margin-top: 10px;
-}
-
-#thumbs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 15px;
-  padding: 20px;
-  min-height: 150px;
-}
-
-.thumb {
-  position: relative;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: grab;
-  transition: all 0.2s ease;
-}
-
-.thumb img {
-  width: 120px;
-  height: auto;
-  display: block;
-}
-
-.page-number {
-  position: absolute;
-  top: 5px;
-  left: 5px;
-  background: rgba(0,0,0,0.7);
-  color: white;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
-}
-
-.drop-zone {
-  min-height: 150px;
-  border: 3px dashed var(--primary);
-  background: rgba(211, 47, 47, 0.05);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--primary);
-  font-weight: bold;
-  margin: 20px 0;
-}
-
-#images img {
-  margin: 10px;
-  max-width: 95%;
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Birleştir</title>
+    <script src="pdf-lib.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #d32f2f;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .box {
+            background: #f8f9fa;
+            border-left: 4px solid #d32f2f;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px dashed #d32f2f;
+            border-radius: 8px;
+            background: #fff;
+        }
+        button {
+            background: #d32f2f;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            width: 100%;
+            margin: 10px 0;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #b71c1c;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .file-list {
+            margin: 15px 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .file-item {
+            background: #e9ecef;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .status {
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+    </style>
 </head>
 <body>
-  <header>
-    <h1>📘 PDF Araçları</h1>
-    <p>PDF dosyalarınızı düzenleyin, dönüştürün ve yönetin</p>
-  </header>
-
-  <!-- Ana sayfa araç listesi -->
-  <div id="main-page">
-    <div class="tools-grid">
-      <div class="tool-card" data-tool="merge">
-        <span class="material-icons tool-icon">attach_file</span>
-        <div class="tool-info">
-          <h3>PDF Birleştir</h3>
-          <p>Birden fazla PDF'yi birleştir</p>
-        </div>
-      </div>
-
-      <div class="tool-card" data-tool="split">
-        <span class="material-icons tool-icon">call_split</span>
-        <div class="tool-info">
-          <h3>PDF Ayır</h3>
-          <p>PDF'yi sayfalara ayır</p>
-        </div>
-      </div>
-
-      <div class="tool-card" data-tool="reorder">
-        <span class="material-icons tool-icon">view_stream</span>
-        <div class="tool-info">
-          <h3>Sayfa Düzenle</h3>
-          <p>Sayfaları sırala veya sil</p>
-        </div>
-      </div>
-
-      <div class="tool-card" data-tool="compress">
-        <span class="material-icons tool-icon">inventory_2</span>
-        <div class="tool-info">
-          <h3>PDF Sıkıştır</h3>
-          <p>Dosya boyutunu küçült</p>
-        </div>
-      </div>
-
-      <div class="tool-card" data-tool="ocr">
-        <span class="material-icons tool-icon">search</span>
-        <div class="tool-info">
-          <h3>OCR (Metin Çıkar)</h3>
-          <p>PDF veya görselden metin al</p>
-        </div>
-      </div>
-
-      <div class="tool-card" data-tool="image">
-        <span class="material-icons tool-icon">image</span>
-        <div class="tool-info">
-          <h3>PDF → Görsel</h3>
-          <p>PDF'yi resme dönüştür</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- PDF Birleştirme Aracı -->
-  <div id="merge-tool" class="tool-content">
-    <button class="back-button"><span class="material-icons">arrow_back</span> Geri</button>
-    <h2><span class="material-icons" style="color:#d32f2f;">attach_file</span> PDF Birleştir</h2>
-    <div class="box">
-      <h3>Birleştirilecek dosyaları seçin:</h3>
-      <input type="file" id="mergeFiles" accept="application/pdf" multiple>
-      <br><br>
-      <button id="mergeBtn"><span class="material-icons">merge_type</span> PDF'leri Birleştir ve İndir</button>
-    </div>
-  </div>
-
-  <!-- PDF Ayırma Aracı -->
-  <div id="split-tool" class="tool-content">
-    <button class="back-button"><span class="material-icons">arrow_back</span> Geri</button>
-    <h2><span class="material-icons" style="color:#d32f2f;">call_split</span> PDF Ayır</h2>
-    <div class="box">
-      <h3>PDF Dosyasını Seçin</h3>
-      <input type="file" id="splitFile" accept="application/pdf">
-    </div>
-    <div class="box">
-      <h3>Hangi Sayfaları Ayırmak İstiyorsunuz?</h3>
-      <p>Örnek: <b>1-3,5,7-9</b></p>
-      <input type="text" id="pagesInput" placeholder="Sayfa aralıklarını girin (örn: 1-3,5,7-9)">
-      <br><br>
-      <button id="splitBtn"><span class="material-icons">content_cut</span> PDF'yi Ayır ve İndir</button>
-    </div>
-  </div>
-
-  <!-- Sayfa Düzenleme Aracı -->
-  <div id="reorder-tool" class="tool-content">
-    <button class="back-button"><span class="material-icons">arrow_back</span> Geri</button>
-    <h2><span class="material-icons" style="color:#d32f2f;">view_stream</span> Sayfa Düzenle</h2>
-    
-    <div class="box">
-      <h3>PDF Dosyasını Seçin</h3>
-      <input type="file" id="reorderFile" accept="application/pdf">
-    </div>
-    
-    <div class="box">
-      <h3>Sayfaları Düzenleyin</h3>
-      <p>Sayfaları sürükleyerek sıralayın veya 🗑 butonu ile silin</p>
-      <div id="thumbs" class="drop-zone">
-        <span>PDF dosyasını yükleyin</span>
-      </div>
-      <button id="downloadBtn" disabled><span class="material-icons">download</span> Yeni PDF'yi İndir</button>
-    </div>
-  </div>
-
-  <!-- PDF Sıkıştırma Aracı -->
-  <div id="compress-tool" class="tool-content">
-    <button class="back-button"><span class="material-icons">arrow_back</span> Geri</button>
-    <h2><span class="material-icons" style="color:#d32f2f;">inventory_2</span> PDF Sıkıştır</h2>
-    
-    <div class="box">
-      <h3>PDF Dosyasını Seçin</h3>
-      <input type="file" id="compressFile" accept="application/pdf">
-    </div>
-    
-    <div class="box">
-      <h3>Sıkıştırma Ayarları</h3>
-      <label for="quality">Görsel Kalitesi:</label>
-      <select id="quality">
-        <option value="0.3">Düşük (en küçük boyut)</option>
-        <option value="0.5">Orta (dengeli kalite)</option>
-      </select>
-      <br><br>
-      <button id="compressBtn"><span class="material-icons">compress</span> PDF'yi Sıkıştır ve İndir</button>
-    </div>
-    
-    <div class="box" id="compressStatus">
-      <h3>Sıkıştırma Durumu</h3>
-      <p id="compressStatusText">Henüz işlem yapılmadı.</p>
-      <div id="sizeCompare"></div>
-    </div>
-  </div>
-
-  <!-- OCR Aracı -->
-  <div id="ocr-tool" class="tool-content">
-    <button class="back-button"><span class="material-icons">arrow_back</span> Geri</button>
-    <h2><span class="material-icons" style="color:#d32f2f;">search</span> OCR (Metin Çıkar)</h2>
-    
-    <div class="box">
-      <h3>Giriş Yöntemini Seçin</h3>
-      <button id="cameraMode"><span class="material-icons">camera_alt</span> Kamera ile Tara</button>
-      <button id="uploadMode"><span class="material-icons">image</span> Görsel Yükle</button>
-
-      <div id="cameraSection" style="display:none;">
-        <video id="video" autoplay playsinline></video><br>
-        <button id="captureBtn"><span class="material-icons">camera</span> Fotoğraf Çek</button>
-      </div>
-
-      <div id="uploadSection" style="display:none;">
-        <input type="file" id="ocrImageInput" accept="image/*"><br>
-      </div>
-
-      <canvas id="canvas" style="display:none;"></canvas>
-      <img id="preview" alt="Önizleme" />
-
-      <button id="ocrBtn" disabled><span class="material-icons">text_fields</span> Metni Tanı</button>
-      <p id="ocrStatus" class="status">Henüz işlem yapılmadı...</p>
-    </div>
-    
-    <div class="box">
-      <h3>Tanınan Metin:</h3>
-      <div id="ocrOutput">Henüz OCR yapılmadı...</div>
-    </div>
-  </div>
-
-  <!-- PDF'den Görsele Aracı -->
-  <div id="image-tool" class="tool-content">
-    <button class="back-button"><span class="material-icons">arrow_back</span> Geri</button>
-    <h2><span class="material-icons" style="color:#d32f2f;">image</span> PDF → Görsel</h2>
-    
-    <div class="box">
-      <h3>PDF Dosyasını Seçin</h3>
-      <input type="file" id="imageFile" accept="application/pdf">
-    </div>
-    
-    <div class="box">
-      <h3>Dönüşüm Ayarları</h3>
-      <label for="imageFormat">Görsel Formatı:</label>
-      <select id="imageFormat">
-        <option value="jpeg">JPEG</option>
-        <option value="png">PNG</option>
-      </select>
-      <br><br>
-      <button id="convertBtn"><span class="material-icons">transform</span> PDF'yi Görsele Dönüştür</button>
-    </div>
-    
-    <div id="images" class="box">
-      <h3>Dönüştürülen Görseller</h3>
-    </div>
-  </div>
-
-<!-- JavaScript burada kalacak - ESKİ ÇALIŞAN VERSİYON -->
-<script>
-// PDF.js worker'ı ayarla
-pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-
-// Sayfa yönlendirme
-document.querySelectorAll('.tool-card').forEach(card => {
-  card.addEventListener('click', () => {
-    const toolId = card.getAttribute('data-tool');
-    document.getElementById('main-page').style.display = 'none';
-    document.getElementById(`${toolId}-tool`).classList.add('active');
-  });
-});
-
-document.querySelectorAll('.back-button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tool-content').forEach(content => {
-      content.classList.remove('active');
-    });
-    document.getElementById('main-page').style.display = 'block';
-  });
-});
-
-// ---------------------------
-// PDF BİRLEŞTİRME FONKSİYONALİTESİ
-// ---------------------------
-document.getElementById('mergeBtn').addEventListener('click', async () => {
-  const files = document.getElementById('mergeFiles').files;
-  if (files.length < 2) {
-    alert("En az 2 PDF seçmelisiniz!");
-    return;
-  }
-
-  try {
-    const mergedPdf = await PDFLib.PDFDocument.create();
-
-    for (let file of files) {
-      const bytes = await file.arrayBuffer();
-      const pdf = await PDFLib.PDFDocument.load(bytes);
-      const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
-      copiedPages.forEach(p => mergedPdf.addPage(p));
-    }
-
-    const mergedBytes = await mergedPdf.save();
-    const blob = new Blob([mergedBytes], { type: 'application/pdf' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'birlesik_pdf.pdf';
-    link.click();
-    
-    // Temizlik
-    setTimeout(() => {
-      URL.revokeObjectURL(link.href);
-    }, 100);
-    
-  } catch (error) {
-    console.error("PDF birleştirme hatası:", error);
-    alert("PDF birleştirilirken bir hata oluştu: " + error.message);
-  }
-});
-
-// ---------------------------
-// PDF AYIRMA FONKSİYONALİTESİ
-// ---------------------------
-function parsePageRanges(input, totalPages) {
-  const ranges = input.split(',').map(r => r.trim());
-  const pages = new Set();
-  for (let r of ranges) {
-    if (r.includes('-')) {
-      const [start, end] = r.split('-').map(Number);
-      for (let i = start; i <= end && i <= totalPages; i++) pages.add(i - 1);
-    } else {
-      const n = parseInt(r);
-      if (!isNaN(n) && n <= totalPages) pages.add(n - 1);
-    }
-  }
-  return Array.from(pages);
-}
-
-document.getElementById('splitBtn').addEventListener('click', async () => {
-  const file = document.getElementById('splitFile').files[0];
-  const rangeInput = document.getElementById('pagesInput').value.trim();
-
-  if (!file) {
-    alert("Lütfen bir PDF seçin.");
-    return;
-  }
-  
-  if (!rangeInput) {
-    alert("Lütfen ayırmak istediğiniz sayfaları belirtin.");
-    return;
-  }
-
-  try {
-    const pdfBytes = await file.arrayBuffer();
-    const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
-    const totalPages = pdfDoc.getPageCount();
-
-    const pagesToExtract = parsePageRanges(rangeInput, totalPages);
-    if (pagesToExtract.length === 0) {
-      alert("Geçerli sayfa aralığı girmediniz.");
-      return;
-    }
-
-    const newPdf = await PDFLib.PDFDocument.create();
-    const copied = await newPdf.copyPages(pdfDoc, pagesToExtract);
-    copied.forEach(p => newPdf.addPage(p));
-
-    const newPdfBytes = await newPdf.save();
-    const blob = new Blob([newPdfBytes], { type: 'application/pdf' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `ayrilmis_${file.name}`;
-    a.click();
-    
-    // Temizlik
-    setTimeout(() => {
-      URL.revokeObjectURL(a.href);
-    }, 100);
-    
-  } catch (error) {
-    console.error("PDF ayırma hatası:", error);
-    alert("PDF ayrılırken bir hata oluştu: " + error.message);
-  }
-});
-
-// ---------------------------
-// SAYFA DÜZENLEME FONKSİYONALİTESİ
-// ---------------------------
-let pdfDoc = null;
-let pdfPages = [];
-let reorderedPages = [];
-
-const reorderFile = document.getElementById("reorderFile");
-const thumbsContainer = document.getElementById("thumbs");
-const downloadBtn = document.getElementById("downloadBtn");
-
-reorderFile.addEventListener("change", async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-    thumbsContainer.innerHTML = "";
-    thumbsContainer.classList.remove("drop-zone");
-    pdfPages = Array.from({ length: pdfDoc.numPages }, (_, i) => i + 1);
-    reorderedPages = [...pdfPages];
-
-    // Tüm sayfa önizlemelerini oluştur
-    for (let i = 0; i < pdfDoc.numPages; i++) {
-      await renderThumbnail(i);
-    }
-
-    enableDragAndDrop();
-    downloadBtn.disabled = false;
-    
-  } catch (error) {
-    console.error("PDF yükleme hatası:", error);
-    alert("PDF yüklenirken bir hata oluştu. Lütfen geçerli bir PDF dosyası seçin.");
-  }
-});
-
-async function renderThumbnail(pageIndex) {
-  const page = await pdfDoc.getPage(pageIndex + 1);
-  const viewport = page.getViewport({ scale: 0.2 });
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-  await page.render({ canvasContext: context, viewport }).promise;
-
-  const thumb = document.createElement("div");
-  thumb.className = "thumb";
-  thumb.draggable = true;
-  thumb.dataset.index = pageIndex + 1;
-
-  const img = document.createElement("img");
-  img.src = canvas.toDataURL();
-  img.alt = `Sayfa ${pageIndex + 1}`;
-  thumb.appendChild(img);
-
-  const pageNumber = document.createElement("div");
-  pageNumber.className = "page-number";
-  pageNumber.textContent = pageIndex + 1;
-  thumb.appendChild(pageNumber);
-
-  const delBtn = document.createElement("button");
-  delBtn.innerHTML = '<span class="material-icons" style="font-size:14px;">delete</span>';
-  delBtn.title = "Sayfayı Sil";
-  delBtn.onclick = (e) => {
-    e.stopPropagation();
-    if (confirm("Bu sayfayı silmek istediğinize emin misiniz?")) {
-      thumb.remove();
-      reorderedPages = reorderedPages.filter(p => p !== pageIndex + 1);
-      updateThumbnailNumbers();
-    }
-  };
-  thumb.appendChild(delBtn);
-
-  thumbsContainer.appendChild(thumb);
-}
-
-function enableDragAndDrop() {
-  const thumbs = document.querySelectorAll(".thumb");
-  
-  let draggedItem = null;
-
-  thumbs.forEach(thumb => {
-    // Drag start
-    thumb.addEventListener("dragstart", function(e) {
-      draggedItem = this;
-      this.classList.add("dragging");
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", this.dataset.index);
-    });
-
-    // Drag end
-    thumb.addEventListener("dragend", function() {
-      this.classList.remove("dragging");
-      draggedItem = null;
-    });
-
-    // Drag over
-    thumb.addEventListener("dragover", function(e) {
-      e.preventDefault();
-    });
-
-    // Drop
-    thumb.addEventListener("drop", function(e) {
-      e.preventDefault();
-      if (draggedItem && this !== draggedItem) {
-        const thumbsArray = Array.from(thumbsContainer.children);
-        const fromIndex = thumbsArray.indexOf(draggedItem);
-        const toIndex = thumbsArray.indexOf(this);
+    <div class="container">
+        <h1>📄 PDF Birleştir</h1>
+        <p class="description">Birden fazla PDF dosyasını tek bir dosyada birleştirin</p>
         
-        if (fromIndex < toIndex) {
-          thumbsContainer.insertBefore(draggedItem, this.nextSibling);
-        } else {
-          thumbsContainer.insertBefore(draggedItem, this);
+        <div class="box">
+            <h3>Birleştirilecek dosyaları seçin:</h3>
+            <input type="file" id="mergeFiles" accept="application/pdf" multiple>
+            <div class="file-list" id="fileList"></div>
+            <button id="mergeBtn">PDF'leri Birleştir ve Kaydet</button>
+        </div>
+
+        <div id="status" class="status" style="display: none;"></div>
+    </div>
+
+    <script>
+        let selectedFiles = [];
+
+        document.getElementById('mergeFiles').addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            selectedFiles = [...selectedFiles, ...files];
+            updateFileList();
+        });
+
+        function updateFileList() {
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = '';
+            
+            selectedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <span>${file.name}</span>
+                    <button class="remove-btn" onclick="removeFile(${index})">Kaldır</button>
+                `;
+                fileList.appendChild(fileItem);
+            });
         }
-        
-        updatePageOrder();
-      }
-    });
-  });
-}
 
-function updatePageOrder() {
-  const thumbs = Array.from(thumbsContainer.children);
-  reorderedPages = thumbs.map(thumb => parseInt(thumb.dataset.index));
-  updateThumbnailNumbers();
-}
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            updateFileList();
+        }
 
-function updateThumbnailNumbers() {
-  const thumbs = document.querySelectorAll(".thumb");
-  thumbs.forEach((thumb, index) => {
-    const pageNumber = thumb.querySelector(".page-number");
-    if (pageNumber) {
-      pageNumber.textContent = index + 1;
-    }
-  });
-}
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+        }
 
-// PDF indir
-downloadBtn.addEventListener("click", async () => {
-  if (reorderedPages.length === 0) {
-    alert("Lütfen en az bir sayfa bırakın!");
-    return;
-  }
-  
-  try {
-    downloadBtn.disabled = true;
-    downloadBtn.innerHTML = '<span class="material-icons">hourglass_empty</span> İşleniyor...';
-    
-    const originalFile = reorderFile.files[0];
-    const originalArrayBuffer = await originalFile.arrayBuffer();
-    const srcDoc = await PDFLib.PDFDocument.load(originalArrayBuffer);
-    const newDoc = await PDFLib.PDFDocument.create();
+        document.getElementById('mergeBtn').addEventListener('click', async () => {
+            if (selectedFiles.length < 2) {
+                showStatus('En az 2 PDF seçmelisiniz!', 'error');
+                return;
+            }
 
-    for (const pageNum of reorderedPages) {
-      const [copiedPage] = await newDoc.copyPages(srcDoc, [pageNum - 1]);
-      newDoc.addPage(copiedPage);
-    }
+            try {
+                showStatus('PDF\'ler birleştiriliyor...', 'info');
+                
+                const mergedPdf = await PDFLib.PDFDocument.create();
 
-    const pdfBytes = await newDoc.save();
-    const blob = new Blob([pdfBytes], { type: "application/pdf" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "duzenlenmis_pdf.pdf";
-    link.click();
-    
-    // Temizlik
-    setTimeout(() => {
-      URL.revokeObjectURL(link.href);
-    }, 100);
-    
-  } catch (error) {
-    console.error("PDF oluşturma hatası:", error);
-    alert("PDF oluşturulurken bir hata oluştu: " + error.message);
-  } finally {
-    downloadBtn.disabled = false;
-    downloadBtn.innerHTML = '<span class="material-icons">download</span> Yeni PDF\'yi İndir';
-  }
-});
+                for (let file of selectedFiles) {
+                    const bytes = await file.arrayBuffer();
+                    const pdf = await PDFLib.PDFDocument.load(bytes);
+                    const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+                    copiedPages.forEach(p => mergedPdf.addPage(p));
+                }
 
-// ---------------------------
-// PDF SIKIŞTIRMA FONKSİYONALİTESİ
-// ---------------------------
-function formatBytes(bytes) {
-  if (bytes === 0) return "0 B";
-  const k = 1024, sizes = ["B","KB","MB","GB"];
-  const i = Math.floor(Math.log(bytes)/Math.log(k));
-  return parseFloat((bytes/Math.pow(k,i)).toFixed(2))+" "+sizes[i];
-}
+                const mergedBytes = await mergedPdf.save();
+                
+                // Flutter'a dosyayı kaydetmesi için mesaj gönder
+                if (window.flutter_inappwebview) {
+                    const blob = new Blob([mergedBytes], { type: 'application/pdf' });
+                    const reader = new FileReader();
+                    reader.onloadend = function() {
+                        const base64 = reader.result.split(',')[1];
+                        window.flutter_inappwebview.callHandler('saveFile', 'birlesik_pdf.pdf', base64);
+                    };
+                    reader.readAsDataURL(blob);
+                }
 
-async function compressPDF(file, quality) {
-  const status = document.getElementById("compressStatusText");
-  const compare = document.getElementById("sizeCompare");
+                showStatus('PDF başarıyla birleştirildi! Download klasörüne kaydedildi.', 'success');
+                
+            } catch (error) {
+                console.error("PDF birleştirme hatası:", error);
+                showStatus('PDF birleştirilirken bir hata oluştu: ' + error.message, 'error');
+            }
+        });
 
-  const originalSize = file.size;
-  compare.innerHTML = `<p>📦 Orijinal boyut: <b>${formatBytes(originalSize)}</b></p>`;
-
-  status.textContent = "📖 PDF okunuyor...";
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-  const pdfDoc = await PDFLib.PDFDocument.create();
-  const totalPages = pdf.numPages;
-  status.textContent = `🖼️ ${totalPages} sayfa işleniyor...`;
-
-  for (let i = 1; i <= totalPages; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 1.5 });
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-
-    await page.render({ canvasContext: ctx, viewport }).promise;
-
-    const imgData = canvas.toDataURL("image/jpeg", parseFloat(quality));
-    const jpgBytes = await fetch(imgData).then(res => res.arrayBuffer());
-    const jpgImage = await pdfDoc.embedJpg(jpgBytes);
-
-    const pdfPage = pdfDoc.addPage([canvas.width, canvas.height]);
-    pdfPage.drawImage(jpgImage, { x: 0, y: 0, width: canvas.width, height: canvas.height });
-
-    status.textContent = `🧩 Sayfa ${i}/${totalPages} işlendi...`;
-  }
-
-  const compressedBytes = await pdfDoc.save();
-  const blob = new Blob([compressedBytes], { type: "application/pdf" });
-  const compressedSize = blob.size;
-  const diff = 100 - ((compressedSize / originalSize) * 100);
-  const saved = (diff > 0 ? diff.toFixed(1) : 0);
-
-  compare.innerHTML += `
-    <p>📉 Yeni boyut: <b>${formatBytes(compressedSize)}</b></p>
-    <p class="result">💾 Kazanım: <b>%${saved}</b></p>
-  `;
-
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "sıkıştırılmış_" + file.name;
-  a.click();
-  URL.revokeObjectURL(a.href);
-
-  status.textContent = "✅ Sıkıştırılmış PDF indirildi!";
-}
-
-document.getElementById("compressBtn").addEventListener("click", async () => {
-  const file = document.getElementById("compressFile").files[0];
-  const quality = document.getElementById("quality").value;
-  if (!file) {
-    alert("PDF seçmelisiniz!");
-    return;
-  }
-  
-  document.getElementById("compressStatusText").textContent = "⏳ İşlem başlıyor...";
-  document.getElementById("sizeCompare").innerHTML = "";
-  
-  try {
-    await compressPDF(file, quality);
-  } catch (e) {
-    console.error(e);
-    alert("❌ Hata: " + e.message);
-  }
-});
-
-// ---------------------------
-// OCR FONKSİYONALİTESİ
-// ---------------------------
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const preview = document.getElementById("preview");
-const ocrStatus = document.getElementById("ocrStatus");
-const ocrOutput = document.getElementById("ocrOutput");
-
-let stream = null;
-let selectedImage = null;
-
-// 🎥 Kamera Modu
-document.getElementById("cameraMode").addEventListener("click", async () => {
-  document.getElementById("cameraSection").style.display = "block";
-  document.getElementById("uploadSection").style.display = "none";
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    video.srcObject = stream;
-    ocrStatus.textContent = "📸 Kamera açık, belgeyi hizala.";
-  } catch (err) {
-    ocrStatus.textContent = "❌ Kamera erişimi reddedildi veya desteklenmiyor.";
-  }
-});
-
-// 📁 Görsel Yükleme Modu
-document.getElementById("uploadMode").addEventListener("click", () => {
-  document.getElementById("cameraSection").style.display = "none";
-  document.getElementById("uploadSection").style.display = "block";
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-    stream = null;
-  }
-  ocrStatus.textContent = "🖼️ Görsel yükleyin.";
-});
-
-// 📷 Fotoğraf çek
-document.getElementById("captureBtn").addEventListener("click", () => {
-  if (!stream) {
-    alert("Kamera aktif değil!");
-    return;
-  }
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  preview.src = canvas.toDataURL("image/jpeg");
-  preview.style.display = "block";
-  selectedImage = preview.src;
-  document.getElementById("ocrBtn").disabled = false;
-  ocrStatus.textContent = "✅ Görsel hazır, metni tanıyabilirsiniz.";
-});
-
-// 📤 Görsel yükle
-document.getElementById("ocrImageInput").addEventListener("change", e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = event => {
-    preview.src = event.target.result;
-    preview.style.display = "block";
-    selectedImage = preview.src;
-    document.getElementById("ocrBtn").disabled = false;
-    ocrStatus.textContent = "✅ Görsel hazır, metni tanıyabilirsiniz.";
-  };
-  reader.readAsDataURL(file);
-});
-
-// 🔍 OCR işlemi
-document.getElementById("ocrBtn").addEventListener("click", async () => {
-  if (!selectedImage) {
-    alert("Lütfen önce bir görsel seçin veya çekin!");
-    return;
-  }
-  
-  ocrStatus.textContent = "⏳ OCR işleniyor...";
-  ocrOutput.textContent = "⏳ Metin tanınıyor...";
-  
-  try {
-    const { data: { text } } = await Tesseract.recognize(selectedImage, "tur+eng");
-    ocrOutput.textContent = text || "❌ Metin bulunamadı.";
-    ocrStatus.textContent = "✅ OCR tamamlandı!";
-  } catch (err) {
-    ocrOutput.textContent = "❌ OCR işlemi başarısız: " + err.message;
-    ocrStatus.textContent = "❌ OCR başarısız!";
-  }
-});
-
-// ---------------------------
-// PDF'DEN GÖRSELE DÖNÜŞTÜRME
-// ---------------------------
-document.getElementById('convertBtn').addEventListener('click', async () => {
-  const file = document.getElementById('imageFile').files[0];
-  const format = document.getElementById('imageFormat').value;
-  if (!file) {
-    alert("PDF dosyası seçmelisiniz.");
-    return;
-  }
-  
-  document.getElementById("images").innerHTML = "<p>⏳ Dönüştürülüyor...</p>";
-
-  try {
-    await renderPDFtoImages(file, format);
-    alert("✅ PDF başarıyla fotoğraflara dönüştürüldü!");
-  } catch (e) {
-    console.error(e);
-    alert("❌ Hata: " + e.message);
-  }
-});
-
-async function renderPDFtoImages(file, format) {
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const output = document.getElementById("images");
-  output.innerHTML = "<h3>Dönüştürülen Görseller</h3>";
-
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 2.0 }); // kalite
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-
-    await page.render({ canvasContext: ctx, viewport }).promise;
-
-    const dataURL = canvas.toDataURL(`image/${format}`, 1.0);
-    const img = document.createElement("img");
-    img.src = dataURL;
-    img.alt = `Sayfa ${i}`;
-    output.appendChild(img);
-
-    // 💾 Her sayfa için indirme bağlantısı
-    const a = document.createElement("a");
-    a.href = dataURL;
-    a.download = `sayfa_${i}.${format}`;
-    a.textContent = `📥 Sayfa ${i} indir`;
-    a.style.display = "block";
-    a.style.marginBottom = "10px";
-    output.appendChild(a);
-  }
-}
-</script>
+        // Flutter handler kaydı
+        if (window.flutter_inappwebview) {
+            window.flutter_inappwebview.registerHandler('saveFile', function(data, callback) {
+                console.log('Dosya kaydedildi:', data);
+            });
+        }
+    </script>
 </body>
 </html>
