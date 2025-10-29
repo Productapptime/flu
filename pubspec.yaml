@@ -17,7 +17,7 @@ dependencies:
   path: ^1.8.3  # ✅ Zaten güncel
   
   # 🔗 Sharing & Printing - GÜNCEL VERSİYONLAR
-  share_plus: ^12.0.1   
+  share_plus: ^10.0.0  
   printing: ^5.14.2   
   
   # 🖼️ Image Processing - GÜNCEL VERSİYON
