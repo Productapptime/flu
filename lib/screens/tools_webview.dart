@@ -121,7 +121,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
                   crossAxisCount: 2,
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
-                  childAspectRatio: 1.5,
+                  childAspectRatio: 2.0,
                 ),
                 itemCount: _tools.length,
                 itemBuilder: (context, index) {
