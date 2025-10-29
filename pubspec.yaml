@@ -44,6 +44,14 @@ flutter:
     - assets/tesseract.min.js
     - assets/tools.html
     
+    # --- YENİ TOOLS HTML DOSYALARI ---
+    - assets/merge.html
+    - assets/split.html
+    - assets/reorder_subtraction.html
+    - assets/compress.html
+    - assets/ocr.html
+    - assets/pdf_to_photo.html
+    
     # --- assets/build/ altındaki dosyalar (29632.jpg görseline göre) ---
     - assets/build/pdf.mjs
     - assets/build/pdf.worker.mjs
