@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ToolsWebView extends StatefulWidget {
   final bool darkMode;
@@ -216,19 +217,59 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
   late InAppWebViewController _webViewController;
   double _progress = 0;
   bool _isLoading = true;
+  bool _isCheckingPermission = false;
+
+  // İzin durumunu saklamak için SharedPreferences
+  Future<bool> _hasStoragePermission() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('has_storage_permission') ?? false;
+  }
+
+  Future<void> _setStoragePermission(bool granted) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('has_storage_permission', granted);
+  }
+
+  Future<bool> _checkRealStoragePermission() async {
+    if (Platform.isAndroid) {
+      // Android 11+ için MANAGE_EXTERNAL_STORAGE kontrolü
+      return await Permission.manageExternalStorage.isGranted;
+    }
+    return false;
+  }
 
   Future<void> _saveFile(String fileName, String base64Data) async {
     try {
       print('Dosya kaydediliyor: $fileName');
       print('Base64 veri uzunluğu: ${base64Data.length}');
 
-      // Android 10+ için MANAGE_EXTERNAL_STORAGE iznini kontrol et
-      if (await Permission.manageExternalStorage.isGranted) {
-        await _saveToDownloads(fileName, base64Data);
-      } else {
-        // MANAGE_EXTERNAL_STORAGE izni yoksa uygulama dizinine kaydet
-        await _saveToAppDirectory(fileName, base64Data);
+      // Önce izin kontrolü yap
+      final hasPermission = await _hasStoragePermission();
+      final realPermission = await _checkRealStoragePermission();
+
+      if (hasPermission && realPermission) {
+        // İzin varsa direkt Download klasörüne kaydet
+        final success = await _saveToDownloads(fileName, base64Data);
+        if (success) return;
       }
+
+      // İzin yoksa veya kayıt başarısızsa kullanıcıya sor
+      if (!_isCheckingPermission) {
+        _isCheckingPermission = true;
+        final shouldRequest = await _showPermissionDialog();
+        _isCheckingPermission = false;
+
+        if (shouldRequest) {
+          final granted = await _requestStoragePermission();
+          if (granted) {
+            final success = await _saveToDownloads(fileName, base64Data);
+            if (success) return;
+          }
+        }
+      }
+
+      // Fallback: uygulama dizinine kaydet
+      await _saveToAppDirectory(fileName, base64Data);
 
     } catch (e) {
       print('Dosya kaydetme hatası: $e');
@@ -236,38 +277,142 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
     }
   }
 
-  Future<void> _saveToDownloads(String fileName, String base64Data) async {
+  Future<bool> _showPermissionDialog() async {
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.folder_open, color: Colors.blue),
+              SizedBox(width: 10),
+              Text('Tüm Dosya Erişimi Gerekli'),
+            ],
+          ),
+          content: const Text(
+            'PDF dosyalarınızı Download klasörüne kaydedebilmek için "Tüm Dosya Erişimi" iznine ihtiyacımız var.\n\nBu sayede tüm özellikleri tam olarak kullanabilirsiniz.',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Şimdi Değil', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('İzin Ver'),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+  }
+
+  Future<bool> _requestStoragePermission() async {
     try {
-      // Download dizinini al
-      Directory? downloadsDir;
-      if (Platform.isAndroid) {
-        downloadsDir = Directory('/storage/emulated/0/Download');
-        if (!await downloadsDir.exists()) {
-          downloadsDir = await getExternalStorageDirectory();
-        }
+      // MANAGE_EXTERNAL_STORAGE iznini iste
+      final status = await Permission.manageExternalStorage.request();
+      
+      if (status.isGranted) {
+        await _setStoragePermission(true);
+        _showSnackBar('Tüm dosya erişimi izni verildi! Artık dosyalar Download klasörünüze kaydedilecek.');
+        return true;
       } else {
-        downloadsDir = await getDownloadsDirectory();
+        // Kullanıcıyı ayarlara yönlendir
+        _showSettingsDialog();
+        return false;
+      }
+    } catch (e) {
+      print('İzin isteme hatası: $e');
+      return false;
+    }
+  }
+
+  void _showSettingsDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.settings, color: Colors.orange),
+              SizedBox(width: 10),
+              Text('İzin Gerekli'),
+            ],
+          ),
+          content: const Text(
+            'Tüm dosya erişimi için ayarlardan izin vermeniz gerekiyor.\n\n"Tüm dosyalara erişim izni ver" seçeneğini aktif etmelisiniz.',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('İptal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                openAppSettings();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Ayarlara Git'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<bool> _saveToDownloads(String fileName, String base64Data) async {
+    try {
+      // Android Download klasörü yolunu belirle
+      String downloadsPath = '/storage/emulated/0/Download';
+      
+      // Klasörü kontrol et
+      final downloadsDir = Directory(downloadsPath);
+      if (!await downloadsDir.exists()) {
+        print('Download klasörü mevcut değil: $downloadsPath');
+        return false;
       }
 
-      if (downloadsDir == null) {
-        throw Exception('Download dizini bulunamadı');
+      // PDF_Manager_Plus alt klasörü oluştur
+      final appDir = Directory('$downloadsPath/PDF_Manager_Plus');
+      if (!await appDir.exists()) {
+        await appDir.create(recursive: true);
       }
 
       // Dosya yolunu oluştur
-      final file = File('${downloadsDir.path}/$fileName');
+      final file = File('${appDir.path}/$fileName');
       
       // Base64 veriyi decode et ve dosyaya yaz
       final bytes = base64.decode(base64Data);
       await file.writeAsBytes(bytes);
 
-      _showSnackBar('Dosya başarıyla kaydedildi: ${file.path}');
-      print('Dosya kaydedildi: ${file.path}');
-      print('Dosya boyutu: ${bytes.length} bytes');
+      // Dosyanın gerçekten yazıldığını kontrol et
+      if (await file.exists()) {
+        final fileSize = await file.length();
+        print('Dosya başarıyla Download klasörüne kaydedildi: ${file.path}');
+        print('Dosya boyutu: $fileSize bytes');
+        
+        _showSnackBar('Dosya Download klasörüne kaydedildi: PDF_Manager_Plus/$fileName');
+        return true;
+      } else {
+        print('Dosya oluşturulamadı');
+        return false;
+      }
 
     } catch (e) {
       print('Download kaydetme hatası: $e');
-      // Fallback: uygulama dizinine kaydet
-      await _saveToAppDirectory(fileName, base64Data);
+      return false;
     }
   }
 
@@ -289,7 +434,7 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
       final bytes = base64.decode(base64Data);
       await file.writeAsBytes(bytes);
 
-      _showSnackBar('Dosya uygulama dizinine kaydedildi: ${file.path}');
+      _showSnackBar('Dosya uygulama dizinine kaydedildi. Dosya Yöneticisi > PDF_Manager_Plus klasörüne bakın.');
       print('Dosya uygulama dizinine kaydedildi: ${file.path}');
       print('Dosya boyutu: ${bytes.length} bytes');
 
@@ -407,31 +552,13 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
                       }
                     } else {
                       console.error('Flutter handler bulunamadı');
-                      alert('Flutter bağlantısı kurulamadı. Lütfen sayfayı yenileyin.');
                       return false;
                     }
                   };
 
                   // Mevcut butonlara event listener ekle
                   setTimeout(function() {
-                    // Merge butonu
-                    const mergeBtn = document.getElementById('mergeBtn');
-                    if (mergeBtn) {
-                      mergeBtn.addEventListener('click', function() {
-                        console.log('Merge butonu tıklandı');
-                      });
-                    }
-
-                    // Split butonu
-                    const splitBtn = document.getElementById('splitBtn');
-                    if (splitBtn) {
-                      splitBtn.addEventListener('click', function() {
-                        console.log('Split butonu tıklandı');
-                      });
-                    }
-
-                    // Diğer butonlar...
-                    console.log('JavaScript enjeksiyonu tamamlandı');
+                    console.log('JavaScript enjeksiyonu tamamlandı - ${widget.tool.title}');
                   }, 1000);
                 ''');
               },
