@@ -1,6 +1,5 @@
 // lib/screens/tools_webview.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 class ToolsWebView extends StatefulWidget {
   final bool darkMode;
@@ -11,11 +10,6 @@ class ToolsWebView extends StatefulWidget {
 }
 
 class _ToolsWebViewState extends State<ToolsWebView> {
-  InAppWebViewController? _controller;
-  bool _loaded = false;
-  String _currentTool = 'main';
-  final String _baseUrl = 'file:///android_asset/flutter_assets/assets/tools.html';
-
   final List<ToolItem> _tools = [
     ToolItem(
       id: 'merge',
@@ -23,6 +17,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
       description: 'Birden fazla PDF\'yi birleştir',
       icon: Icons.merge,
       color: Colors.blue,
+      htmlFile: 'merge.html',
     ),
     ToolItem(
       id: 'split',
@@ -30,6 +25,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
       description: 'PDF\'yi sayfalara ayır',
       icon: Icons.call_split,
       color: Colors.green,
+      htmlFile: 'split.html',
     ),
     ToolItem(
       id: 'reorder',
@@ -37,6 +33,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
       description: 'Sayfaları sırala veya sil',
       icon: Icons.view_stream,
       color: Colors.orange,
+      htmlFile: 'reorder_subtraction.html',
     ),
     ToolItem(
       id: 'compress',
@@ -44,6 +41,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
       description: 'Dosya boyutunu küçült',
       icon: Icons.inventory_2,
       color: Colors.purple,
+      htmlFile: 'compress.html',
     ),
     ToolItem(
       id: 'ocr',
@@ -51,6 +49,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
       description: 'PDF veya görselden metin al',
       icon: Icons.search,
       color: Colors.teal,
+      htmlFile: 'ocr.html',
     ),
     ToolItem(
       id: 'image',
@@ -58,46 +57,24 @@ class _ToolsWebViewState extends State<ToolsWebView> {
       description: 'PDF\'yi resme dönüştür',
       icon: Icons.image,
       color: Colors.red,
+      htmlFile: 'pdf_to_photo.html',
     ),
   ];
 
-  void _openTool(String toolId) {
-    setState(() {
-      _currentTool = toolId;
-    });
-    
-    // WebView'e tool değişikliğini bildir
-    final url = '$_baseUrl#tool=$toolId';
-    _controller?.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+  void _openTool(ToolItem tool) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ToolDetailScreen(
+          tool: tool,
+          darkMode: widget.darkMode,
+        ),
+      ),
+    );
   }
 
-  void _goBack() {
-    setState(() {
-      _currentTool = 'main';
-    });
-    
-    // Ana sayfaya dön
-    _controller?.loadUrl(urlRequest: URLRequest(url: WebUri(_baseUrl)));
-  }
-
-  String _getCurrentUrl() {
-    if (_currentTool == 'main') {
-      return _baseUrl;
-    } else {
-      return '$_baseUrl#tool=$_currentTool';
-    }
-  }
-
-  String _getAppBarTitle() {
-    if (_currentTool == 'main') {
-      return 'PDF Araçları';
-    } else {
-      final tool = _tools.firstWhere((t) => t.id == _currentTool, orElse: () => _tools[0]);
-      return tool.title;
-    }
-  }
-
-  Widget _buildMainPage() {
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('PDF Araçları'),
@@ -160,7 +137,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: InkWell(
-        onTap: () => _openTool(tool.id),
+        onTap: () => _openTool(tool),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -214,156 +191,44 @@ class _ToolsWebViewState extends State<ToolsWebView> {
       ),
     );
   }
+}
 
-  Widget _buildToolPage() {
+class ToolDetailScreen extends StatelessWidget {
+  final ToolItem tool;
+  final bool darkMode;
+
+  const ToolDetailScreen({
+    super.key,
+    required this.tool,
+    required this.darkMode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_getAppBarTitle()),
-        backgroundColor: widget.darkMode ? Colors.black : Colors.red,
-        foregroundColor: widget.darkMode ? Colors.red : Colors.white,
+        title: Text(tool.title),
+        backgroundColor: darkMode ? Colors.black : Colors.red,
+        foregroundColor: darkMode ? Colors.red : Colors.white,
         toolbarHeight: 48,
         leading: IconButton(
           icon: Icon(
             Icons.arrow_back,
-            color: widget.darkMode ? Colors.red : Colors.white,
+            color: darkMode ? Colors.red : Colors.white,
           ),
-          onPressed: _goBack,
+          onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                Container(color: widget.darkMode ? Colors.black : Colors.transparent),
-                
-                InAppWebView(
-                  initialUrlRequest: URLRequest(url: WebUri(_getCurrentUrl())),
-                  initialSettings: InAppWebViewSettings(
-                    javaScriptEnabled: true,
-                    allowFileAccess: true,
-                    allowFileAccessFromFileURLs: true,
-                    allowUniversalAccessFromFileURLs: true,
-                    supportZoom: true,
-                    useHybridComposition: true,
-                    transparentBackground: true,
-                    clearCache: true,
-                  ),
-                  onWebViewCreated: (controller) {
-                    _controller = controller;
-                  },
-                  onLoadStart: (controller, url) {
-                    final urlString = url?.toString() ?? '';
-                    if (urlString.contains('#tool=')) {
-                      final toolId = urlString.split('#tool=').last;
-                      if (toolId != _currentTool) {
-                        setState(() {
-                          _currentTool = toolId;
-                        });
-                      }
-                    } else if (_currentTool != 'main') {
-                      setState(() {
-                        _currentTool = 'main';
-                      });
-                    }
-                  },
-                  onLoadStop: (controller, url) async {
-                    setState(() => _loaded = true);
-                    
-                    // JavaScript'i manuel olarak çalıştır
-                    await controller.evaluateJavascript(
-                      source: """
-                        // PDF.js worker'ı ayarla
-                        if (typeof pdfjsLib !== 'undefined') {
-                          pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-                        }
-                        
-                        // URL'deki tool parametresini kontrol et
-                        function checkUrlTool() {
-                          const hash = window.location.hash;
-                          if (hash.includes('tool=')) {
-                            const toolId = hash.split('tool=')[1];
-                            showTool(toolId);
-                          } else {
-                            showMainPage();
-                          }
-                        }
-                        
-                        // Ana sayfayı göster
-                        function showMainPage() {
-                          const mainPage = document.getElementById('main-page');
-                          if (mainPage) mainPage.style.display = 'block';
-                          document.querySelectorAll('.tool-content').forEach(content => {
-                            content.classList.remove('active');
-                          });
-                        }
-                        
-                        // Tool göster
-                        function showTool(toolId) {
-                          const mainPage = document.getElementById('main-page');
-                          if (mainPage) mainPage.style.display = 'none';
-                          document.querySelectorAll('.tool-content').forEach(content => {
-                            content.classList.remove('active');
-                          });
-                          
-                          const toolElement = document.getElementById(toolId + '-tool');
-                          if (toolElement) {
-                            toolElement.classList.add('active');
-                          }
-                        }
-                        
-                        // Sayfa yüklendiğinde URL'yi kontrol et
-                        if (document.readyState === 'loading') {
-                          document.addEventListener('DOMContentLoaded', checkUrlTool);
-                        } else {
-                          checkUrlTool();
-                        }
-                        
-                        // Hash değişikliklerini dinle
-                        window.addEventListener('hashchange', checkUrlTool);
-                        
-                        // Klasik tool-card tıklamaları
-                        document.querySelectorAll('.tool-card').forEach(card => {
-                          card.addEventListener('click', () => {
-                            const toolId = card.getAttribute('data-tool');
-                            window.location.hash = 'tool=' + toolId;
-                          });
-                        });
-                        
-                        // Back butonları
-                        document.querySelectorAll('.back-button').forEach(btn => {
-                          btn.addEventListener('click', () => {
-                            window.location.hash = '';
-                          });
-                        });
-                      """
-                    );
-                  },
-                  onConsoleMessage: (controller, message) {
-                    debugPrint('TOOLS WEBVIEW: ${message.message}');
-                  },
-                  onLoadError: (controller, url, code, message) {
-                    debugPrint('TOOLS WEBVIEW LOAD ERROR ($code): $message');
-                  },
-                ),
-                
-                if (!_loaded)
-                  Center(
-                    child: CircularProgressIndicator(
-                      color: widget.darkMode ? Colors.red : Colors.red,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
+      body: InAppWebView(
+        initialFile: "assets/${tool.htmlFile}",
+        initialSettings: InAppWebViewSettings(
+          javaScriptEnabled: true,
+          allowFileAccess: true,
+          allowFileAccessFromFileURLs: true,
+          allowUniversalAccessFromFileURLs: true,
+        ),
       ),
     );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _currentTool == 'main' ? _buildMainPage() : _buildToolPage();
   }
 }
 
@@ -373,6 +238,7 @@ class ToolItem {
   final String description;
   final IconData icon;
   final Color color;
+  final String htmlFile;
 
   ToolItem({
     required this.id,
@@ -380,5 +246,55 @@ class ToolItem {
     required this.description,
     required this.icon,
     required this.color,
+    required this.htmlFile,
+  });
+}
+
+// Basit InAppWebView wrapper
+class InAppWebView extends StatelessWidget {
+  final String initialFile;
+  final InAppWebViewSettings initialSettings;
+
+  const InAppWebView({
+    super.key,
+    required this.initialFile,
+    required this.initialSettings,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.build, size: 64, color: Colors.grey),
+          SizedBox(height: 16),
+          Text(
+            'PDF Araçları',
+            style: TextStyle(fontSize: 18, color: Colors.grey),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Araç içeriği yükleniyor...',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Basit settings class
+class InAppWebViewSettings {
+  final bool javaScriptEnabled;
+  final bool allowFileAccess;
+  final bool allowFileAccessFromFileURLs;
+  final bool allowUniversalAccessFromFileURLs;
+
+  const InAppWebViewSettings({
+    this.javaScriptEnabled = true,
+    this.allowFileAccess = true,
+    this.allowFileAccessFromFileURLs = true,
+    this.allowUniversalAccessFromFileURLs = true,
   });
 }
