@@ -17,8 +17,8 @@ dependencies:
   path: ^1.8.3  # ✅ Zaten güncel
   
   # 🔗 Sharing & Printing - GÜNCEL VERSİYONLAR
-  share_plus: ^9.0.0   # 7.0.1 -> 9.0.0
-  printing: ^5.14.2    # 5.9.1 -> 5.14.0
+  share_plus: ^12.0.1   
+  printing: ^5.14.2   
   
   # 🖼️ Image Processing - GÜNCEL VERSİYON
   image_picker: ^1.1.2  # 1.0.4 -> 1.1.2
