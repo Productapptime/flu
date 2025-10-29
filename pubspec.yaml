@@ -1,7 +1,3 @@
-bu yeni html eri assets ekledim pubspec.yaml için de ekleme yapacam nasil
-
-asagidakini bozmadan ekleme yap
-
 name: pdf_manager_plus
 description: A comprehensive PDF management and editing application with advanced tools.
 publish_to: 'none'
