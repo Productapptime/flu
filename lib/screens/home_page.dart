@@ -1,5 +1,9 @@
 // lib/screens/home_page.dart
+import 'dart:io'; // ✅ BU EKLENDİ - File için
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p; // ✅ BU EKLENDİ - p için
+import 'package:share_plus/share_plus.dart'; // ✅ BU EKLENDİ - Share ve XFile için
+import 'package:printing/printing.dart'; // ✅ BU EKLENDİ - Printing için
 import '../models/file_system_item.dart';
 import '../models/pdf_file_item.dart';
 import '../models/pdf_folder_item.dart';
@@ -14,6 +18,8 @@ class PDFHomePage extends StatefulWidget {
   @override
   State<PDFHomePage> createState() => _PDFHomePageState();
 }
+
+
 
 class _PDFHomePageState extends State<PDFHomePage> {
   final List<FileSystemItem> _allItems = [];
