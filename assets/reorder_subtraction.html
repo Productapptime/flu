@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sayfa Düzenle</title>
+    <script src="pdf-lib.min.js"></script>
+    <script src="pdf.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #d32f2f;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .box {
+            background: #f8f9fa;
+            border-left: 4px solid #d32f2f;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        button {
+            background: #d32f2f;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px 5px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #b71c1c;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .delete-btn {
+            background: #dc3545;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        .delete-btn:hover {
+            background: #c82333;
+        }
+        #thumbs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            padding: 20px;
+            min-height: 150px;
+            border: 3px dashed #d32f2f;
+            border-radius: 10px;
+            background: rgba(211, 47, 47, 0.05);
+            margin: 20px 0;
+        }
+        .thumb {
+            position: relative;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: grab;
+            transition: all 0.2s ease;
+        }
+        .thumb:hover {
+            border-color: #d32f2f;
+            transform: translateY(-2px);
+        }
+        .thumb img {
+            width: 120px;
+            height: auto;
+            display: block;
+        }
+        .page-number {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status {
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📑 Sayfa Düzenle</h1>
+        <p class="description">Sayfaları sıralayın veya silin</p>
+        
+        <div class="box">
+            <h3>PDF Dosyasını Seçin</h3>
+            <input type="file" id="reorderFile" accept="application/pdf">
+        </div>
+
+        <div class="box">
+            <h3>Sayfaları Düzenleyin</h3>
+            <p>Sayfaları sürükleyerek sıralayın veya sil butonu ile silin</p>
+            <div id="thumbs">
+                <span>PDF dosyasını yükleyin</span>
+            </div>
+            
+            <div class="controls">
+                <button id="downloadBtn" disabled>Yeni PDF'yi Kaydet</button>
+                <button id="resetBtn" style="background: #6c757d;">Sıfırla</button>
+            </div>
+        </div>
+
+        <div id="status" class="status" style="display: none;"></div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+        let pdfDoc = null;
+        let pdfPages = [];
+        let reorderedPages = [];
+        let originalFile = null;
+
+        const reorderFile = document.getElementById("reorderFile");
+        const thumbsContainer = document.getElementById("thumbs");
+        const downloadBtn = document.getElementById("downloadBtn");
+        const resetBtn = document.getElementById("resetBtn");
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+        }
+
+        reorderFile.addEventListener("change", async e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            originalFile = file;
+
+            try {
+                showStatus('PDF yükleniyor...', 'info');
+                const arrayBuffer = await file.arrayBuffer();
+                pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+                thumbsContainer.innerHTML = "";
+                pdfPages = Array.from({ length: pdfDoc.numPages }, (_, i) => i + 1);
+                reorderedPages = [...pdfPages];
+
+                // Tüm sayfa önizlemelerini oluştur
+                for (let i = 0; i < pdfDoc.numPages; i++) {
+                    await renderThumbnail(i);
+                }
+
+                enableDragAndDrop();
+                downloadBtn.disabled = false;
+                showStatus('PDF yüklendi. Sayfaları düzenleyebilirsiniz.', 'success');
+                
+            } catch (error) {
+                console.error("PDF yükleme hatası:", error);
+                showStatus('PDF yüklenirken bir hata oluştu.', 'error');
+            }
+        });
+
+        async function renderThumbnail(pageIndex) {
+            const page = await pdfDoc.getPage(pageIndex + 1);
+            const viewport = page.getViewport({ scale: 0.15 });
+            const canvas = document.createElement("canvas");
+            const context = canvas.getContext("2d");
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: context, viewport }).promise;
+
+            const thumb = document.createElement("div");
+            thumb.className = "thumb";
+            thumb.draggable = true;
+            thumb.dataset.index = pageIndex + 1;
+
+            const img = document.createElement("img");
+            img.src = canvas.toDataURL();
+            img.alt = `Sayfa ${pageIndex + 1}`;
+            thumb.appendChild(img);
+
+            const pageNumber = document.createElement("div");
+            pageNumber.className = "page-number";
+            pageNumber.textContent = pageIndex + 1;
+            thumb.appendChild(pageNumber);
+
+            const delBtn = document.createElement("button");
+            delBtn.className = "delete-btn";
+            delBtn.innerHTML = '🗑 Sil';
+            delBtn.title = "Sayfayı Sil";
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (confirm("Bu sayfayı silmek istediğinize emin misiniz?")) {
+                    thumb.remove();
+                    reorderedPages = reorderedPages.filter(p => p !== pageIndex + 1);
+                    updateThumbnailNumbers();
+                }
+            };
+            thumb.appendChild(delBtn);
+
+            thumbsContainer.appendChild(thumb);
+        }
+
+        function enableDragAndDrop() {
+            const thumbs = document.querySelectorAll(".thumb");
+            
+            let draggedItem = null;
+
+            thumbs.forEach(thumb => {
+                thumb.addEventListener("dragstart", function(e) {
+                    draggedItem = this;
+                    this.classList.add("dragging");
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", this.dataset.index);
+                });
+
+                thumb.addEventListener("dragend", function() {
+                    this.classList.remove("dragging");
+                    draggedItem = null;
+                });
+
+                thumb.addEventListener("dragover", function(e) {
+                    e.preventDefault();
+                });
+
+                thumb.addEventListener("drop", function(e) {
+                    e.preventDefault();
+                    if (draggedItem && this !== draggedItem) {
+                        const thumbsArray = Array.from(thumbsContainer.children);
+                        const fromIndex = thumbsArray.indexOf(draggedItem);
+                        const toIndex = thumbsArray.indexOf(this);
+                        
+                        if (fromIndex < toIndex) {
+                            thumbsContainer.insertBefore(draggedItem, this.nextSibling);
+                        } else {
+                            thumbsContainer.insertBefore(draggedItem, this);
+                        }
+                        
+                        updatePageOrder();
+                    }
+                });
+            });
+        }
+
+        function updatePageOrder() {
+            const thumbs = Array.from(thumbsContainer.children);
+            reorderedPages = thumbs.map(thumb => parseInt(thumb.dataset.index));
+            updateThumbnailNumbers();
+        }
+
+        function updateThumbnailNumbers() {
+            const thumbs = document.querySelectorAll(".thumb");
+            thumbs.forEach((thumb, index) => {
+                const pageNumber = thumb.querySelector(".page-number");
+                if (pageNumber) {
+                    pageNumber.textContent = index + 1;
+                }
+            });
+        }
+
+        // PDF kaydet
+        downloadBtn.addEventListener("click", async () => {
+            if (reorderedPages.length === 0) {
+                showStatus("Lütfen en az bir sayfa bırakın!", "error");
+                return;
+            }
+            
+            try {
+                downloadBtn.disabled = true;
+                downloadBtn.textContent = "Kaydediliyor...";
+                showStatus("PDF kaydediliyor...", "info");
+                
+                const originalArrayBuffer = await originalFile.arrayBuffer();
+                const srcDoc = await PDFLib.PDFDocument.load(originalArrayBuffer);
+                const newDoc = await PDFLib.PDFDocument.create();
+
+                for (const pageNum of reorderedPages) {
+                    const [copiedPage] = await newDoc.copyPages(srcDoc, [pageNum - 1]);
+                    newDoc.addPage(copiedPage);
+                }
+
+                const pdfBytes = await newDoc.save();
+                
+                // Flutter'a dosyayı kaydetmesi için mesaj gönder
+                if (window.flutter_inappwebview) {
+                    const blob = new Blob([pdfBytes], { type: "application/pdf" });
+                    const reader = new FileReader();
+                    reader.onloadend = function() {
+                        const base64 = reader.result.split(',')[1];
+                        const fileName = "duzenlenmis_pdf.pdf";
+                        window.flutter_inappwebview.callHandler('saveFile', fileName, base64);
+                    };
+                    reader.readAsDataURL(blob);
+                }
+
+                showStatus("PDF başarıyla kaydedildi! Download klasörüne kaydedildi.", "success");
+                
+            } catch (error) {
+                console.error("PDF oluşturma hatası:", error);
+                showStatus("PDF kaydedilirken bir hata oluştu.", "error");
+            } finally {
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = "Yeni PDF'yi Kaydet";
+            }
+        });
+
+        // Sıfırla butonu
+        resetBtn.addEventListener("click", () => {
+            if (pdfDoc) {
+                reorderedPages = [...pdfPages];
+                thumbsContainer.innerHTML = "";
+                pdfPages.forEach(async (_, index) => {
+                    await renderThumbnail(index);
+                });
+                enableDragAndDrop();
+                showStatus("Sayfa sıralaması sıfırlandı.", "info");
+            }
+        });
+
+        // Flutter handler kaydı
+        if (window.flutter_inappwebview) {
+            window.flutter_inappwebview.registerHandler('saveFile', function(data, callback) {
+                console.log('Dosya kaydedildi:', data);
+            });
+        }
+    </script>
+</body>
+</html>
