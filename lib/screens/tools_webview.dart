@@ -121,7 +121,8 @@ class _ToolsWebViewState extends State<ToolsWebView> {
                   crossAxisCount: 2,
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
-                  childAspectRatio: 2.0,
+                  // Kart yüksekliğini artırmak için 2.0'dan 1.8'e düşürüldü
+                  childAspectRatio: 1.8, 
                 ),
                 itemCount: _tools.length,
                 itemBuilder: (context, index) {
@@ -146,7 +147,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
         onTap: () => _openTool(tool),
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
@@ -171,29 +172,25 @@ class _ToolsWebViewState extends State<ToolsWebView> {
                 size: 32,
                 color: tool.color,
               ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: Text(
-                  tool.title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              const SizedBox(height: 12),
+              Text(
+                tool.title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
-              Expanded(
-                child: Text(
-                  tool.description,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              Text(
+                tool.description,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
