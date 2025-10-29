@@ -1,6 +1,10 @@
 // lib/screens/tools_webview.dart
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class ToolsWebView extends StatefulWidget {
   final bool darkMode;
@@ -213,6 +217,55 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
   double _progress = 0;
   bool _isLoading = true;
 
+  Future<void> _saveFile(String fileName, String base64Data) async {
+    try {
+      // Depolama iznini kontrol et
+      var status = await Permission.storage.status;
+      if (!status.isGranted) {
+        status = await Permission.storage.request();
+        if (!status.isGranted) {
+          _showSnackBar('Dosya kaydetmek için depolama izni gerekiyor');
+          return;
+        }
+      }
+
+      // Download dizinini al
+      final directory = await getExternalStorageDirectory();
+      final downloadDir = Directory('${directory?.path}/Download');
+      
+      // Download dizini yoksa oluştur
+      if (!await downloadDir.exists()) {
+        await downloadDir.create(recursive: true);
+      }
+
+      // Dosya yolunu oluştur
+      final file = File('${downloadDir.path}/$fileName');
+      
+      // Base64 veriyi decode et ve dosyaya yaz
+      final bytes = base64.decode(base64Data);
+      await file.writeAsBytes(bytes);
+
+      _showSnackBar('Dosya başarıyla kaydedildi: ${file.path}');
+      
+      print('Dosya kaydedildi: ${file.path}');
+      print('Dosya boyutu: ${bytes.length} bytes');
+
+    } catch (e) {
+      print('Dosya kaydetme hatası: $e');
+      _showSnackBar('Dosya kaydedilirken hata oluştu: $e');
+    }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 3),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -254,6 +307,18 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
               ),
               onWebViewCreated: (controller) {
                 _webViewController = controller;
+                
+                // JavaScript handler'ını kaydet
+                controller.addJavaScriptHandler(
+                  handlerName: 'saveFile',
+                  callback: (args) {
+                    if (args.length >= 2) {
+                      final fileName = args[0] as String;
+                      final base64Data = args[1] as String;
+                      _saveFile(fileName, base64Data);
+                    }
+                  },
+                );
               },
               onLoadStart: (controller, url) {
                 setState(() {
@@ -271,6 +336,43 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
                   _isLoading = false;
                   _progress = 1.0;
                 });
+                
+                // JavaScript handler'ını HTML'e enjekte et
+                controller.evaluateJavascript(source: '''
+                  // Flutter handler kaydı
+                  if (window.flutter_inappwebview) {
+                    window.flutter_inappwebview.callHandler = function(handlerName, ...args) {
+                      if (handlerName === 'saveFile') {
+                        window.flutter_inappwebview.handlerPost(JSON.stringify({
+                          name: handlerName,
+                          args: args
+                        }));
+                      }
+                    };
+                  }
+                  
+                  // Mevcut saveFile fonksiyonlarını güncelle
+                  function saveFileToFlutter(fileName, base64Data) {
+                    if (window.flutter_inappwebview) {
+                      window.flutter_inappwebview.callHandler('saveFile', fileName, base64Data);
+                      return true;
+                    }
+                    return false;
+                  }
+                  
+                  // Tüm kaydetme butonları için global handler
+                  document.addEventListener('click', function(e) {
+                    if (e.target.id === 'mergeBtn' || 
+                        e.target.id === 'splitBtn' || 
+                        e.target.id === 'downloadBtn' || 
+                        e.target.id === 'compressBtn' || 
+                        e.target.id === 'ocrBtn' || 
+                        e.target.id === 'convertBtn' ||
+                        e.target.classList.contains('download-btn')) {
+                      console.log('Kaydet butonu tıklandı:', e.target.id);
+                    }
+                  });
+                ''');
               },
               onLoadError: (controller, url, code, message) {
                 setState(() {
