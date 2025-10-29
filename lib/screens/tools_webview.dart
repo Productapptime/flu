@@ -1,5 +1,6 @@
 // lib/screens/tools_webview.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 class ToolsWebView extends StatefulWidget {
   final bool darkMode;
@@ -193,7 +194,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
   }
 }
 
-class ToolDetailScreen extends StatelessWidget {
+class ToolDetailScreen extends StatefulWidget {
   final ToolItem tool;
   final bool darkMode;
 
@@ -204,29 +205,85 @@ class ToolDetailScreen extends StatelessWidget {
   });
 
   @override
+  State<ToolDetailScreen> createState() => _ToolDetailScreenState();
+}
+
+class _ToolDetailScreenState extends State<ToolDetailScreen> {
+  late InAppWebViewController _webViewController;
+  double _progress = 0;
+  bool _isLoading = true;
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(tool.title),
-        backgroundColor: darkMode ? Colors.black : Colors.red,
-        foregroundColor: darkMode ? Colors.red : Colors.white,
+        title: Text(widget.tool.title),
+        backgroundColor: widget.darkMode ? Colors.black : Colors.red,
+        foregroundColor: widget.darkMode ? Colors.red : Colors.white,
         toolbarHeight: 48,
         leading: IconButton(
           icon: Icon(
             Icons.arrow_back,
-            color: darkMode ? Colors.red : Colors.white,
+            color: widget.darkMode ? Colors.red : Colors.white,
           ),
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: InAppWebView(
-        initialFile: "assets/${tool.htmlFile}",
-        initialSettings: InAppWebViewSettings(
-          javaScriptEnabled: true,
-          allowFileAccess: true,
-          allowFileAccessFromFileURLs: true,
-          allowUniversalAccessFromFileURLs: true,
-        ),
+      body: Column(
+        children: [
+          if (_isLoading || _progress < 1.0)
+            LinearProgressIndicator(
+              value: _progress,
+              backgroundColor: Colors.grey[300],
+              valueColor: AlwaysStoppedAnimation<Color>(
+                widget.darkMode ? Colors.red : Colors.red,
+              ),
+            ),
+          Expanded(
+            child: InAppWebView(
+              initialUrlRequest: URLRequest(
+                url: WebUri('file:///android_asset/flutter_assets/assets/${widget.tool.htmlFile}'),
+              ),
+              initialSettings: InAppWebViewSettings(
+                javaScriptEnabled: true,
+                allowFileAccess: true,
+                allowFileAccessFromFileURLs: true,
+                allowUniversalAccessFromFileURLs: true,
+                transparentBackground: true,
+                useHybridComposition: true,
+              ),
+              onWebViewCreated: (controller) {
+                _webViewController = controller;
+              },
+              onLoadStart: (controller, url) {
+                setState(() {
+                  _isLoading = true;
+                  _progress = 0;
+                });
+              },
+              onProgressChanged: (controller, progress) {
+                setState(() {
+                  _progress = progress / 100;
+                });
+              },
+              onLoadStop: (controller, url) {
+                setState(() {
+                  _isLoading = false;
+                  _progress = 1.0;
+                });
+              },
+              onLoadError: (controller, url, code, message) {
+                setState(() {
+                  _isLoading = false;
+                });
+                print('WebView Load Error: $code - $message');
+              },
+              onConsoleMessage: (controller, consoleMessage) {
+                print('WebView Console: ${consoleMessage.message}');
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -247,54 +304,5 @@ class ToolItem {
     required this.icon,
     required this.color,
     required this.htmlFile,
-  });
-}
-
-// Basit InAppWebView wrapper
-class InAppWebView extends StatelessWidget {
-  final String initialFile;
-  final InAppWebViewSettings initialSettings;
-
-  const InAppWebView({
-    super.key,
-    required this.initialFile,
-    required this.initialSettings,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.build, size: 64, color: Colors.grey),
-          SizedBox(height: 16),
-          Text(
-            'PDF Araçları',
-            style: TextStyle(fontSize: 18, color: Colors.grey),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Araç içeriği yükleniyor...',
-            style: TextStyle(color: Colors.grey),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Basit settings class
-class InAppWebViewSettings {
-  final bool javaScriptEnabled;
-  final bool allowFileAccess;
-  final bool allowFileAccessFromFileURLs;
-  final bool allowUniversalAccessFromFileURLs;
-
-  const InAppWebViewSettings({
-    this.javaScriptEnabled = true,
-    this.allowFileAccess = true,
-    this.allowFileAccessFromFileURLs = true,
-    this.allowUniversalAccessFromFileURLs = true,
   });
 }
