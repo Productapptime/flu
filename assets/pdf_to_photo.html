@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF → Görsel</title>
+    <script src="pdf.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #d32f2f;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .box {
+            background: #f8f9fa;
+            border-left: 4px solid #d32f2f;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        button {
+            background: #d32f2f;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px 5px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #b71c1c;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        #images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 20px 0;
+            justify-content: center;
+        }
+        .image-container {
+            text-align: center;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .image-container img {
+            max-width: 200px;
+            max-height: 300px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .download-btn {
+            background: #28a745;
+            padding: 8px 15px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .download-btn:hover {
+            background: #218838;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #d32f2f;
+            border-radius: 10px;
+            transition: width 0.3s;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .batch-download {
+            background: #17a2b8;
+        }
+        .batch-download:hover {
+            background: #138496;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖼️ PDF → Görsel</h1>
+        <p class="description">PDF sayfalarını görsellere dönüştürün</p>
+        
+        <div class="box">
+            <h3>PDF Dosyasını Seçin</h3>
+            <input type="file" id="pdfFile" accept="application/pdf">
+        </div>
+
+        <div class="box">
+            <h3>Dönüşüm Ayarları</h3>
+            <label for="imageFormat">Görsel Formatı:</label>
+            <select id="imageFormat">
+                <option value="jpeg">JPEG</option>
+                <option value="png">PNG</option>
+            </select>
+            
+            <label for="imageQuality">Görsel Kalitesi (JPEG için):</label>
+            <select id="imageQuality">
+                <option value="0.9">Yüksek</option>
+                <option value="0.7" selected>Orta</option>
+                <option value="0.5">Düşük</option>
+            </select>
+
+            <label for="imageScale">Görsel Boyutu:</label>
+            <select id="imageScale">
+                <option value="1.0">Küçük</option>
+                <option value="1.5" selected>Orta</option>
+                <option value="2.0">Büyük</option>
+                <option value="3.0">Çok Büyük</option>
+            </select>
+
+            <div class="controls">
+                <button id="convertBtn">PDF'yi Görsele Dönüştür</button>
+                <button id="batchDownloadBtn" class="batch-download" disabled>Tümünü Kaydet</button>
+            </div>
+        </div>
+
+        <div class="progress" style="display: none;">
+            <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+        </div>
+
+        <div id="status" class="status" style="display: none;"></div>
+
+        <div id="images" class="box">
+            <h3>Dönüştürülen Görseller</h3>
+            <div id="imagesContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+        let convertedImages = [];
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+        }
+
+        function updateProgress(percent) {
+            const progressBar = document.getElementById('progressBar');
+            const progressContainer = document.querySelector('.progress');
+            progressBar.style.width = percent + '%';
+            progressContainer.style.display = 'block';
+        }
+
+        function saveImageToFlutter(imageData, fileName) {
+            if (window.flutter_inappwebview) {
+                window.flutter_inappwebview.callHandler('saveFile', fileName, imageData);
+            }
+        }
+
+        async function renderPDFtoImages(file, format, quality, scale) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            const imagesContainer = document.getElementById('imagesContainer');
+            
+            imagesContainer.innerHTML = '';
+            convertedImages = [];
+            showStatus('PDF dönüştürülüyor...', 'info');
+
+            const totalPages = pdf.numPages;
+            let completedPages = 0;
+
+            for (let i = 1; i <= totalPages; i++) {
+                const page = await pdf.getPage(i);
+                const viewport = page.getViewport({ scale: parseFloat(scale) });
+                const canvas = document.createElement("canvas");
+                const ctx = canvas.getContext("2d");
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+
+                await page.render({ canvasContext: ctx, viewport }).promise;
+
+                const dataURL = canvas.toDataURL(`image/${format}`, parseFloat(quality));
+                
+                // Görseli container'a ekle
+                const imageContainer = document.createElement('div');
+                imageContainer.className = 'image-container';
+                
+                const img = document.createElement('img');
+                img.src = dataURL;
+                img.alt = `Sayfa ${i}`;
+                
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className = 'download-btn';
+                downloadBtn.textContent = 'Kaydet';
+                downloadBtn.onclick = () => {
+                    const fileName = `sayfa_${i}.${format}`;
+                    saveImageToFlutter(dataURL.split(',')[1], fileName);
+                    showStatus(`Sayfa ${i} kaydedildi!`, 'success');
+                };
+                
+                imageContainer.appendChild(img);
+                imageContainer.appendChild(downloadBtn);
+                imagesContainer.appendChild(imageContainer);
+
+                // Görseli listeye ekle
+                convertedImages.push({
+                    data: dataURL.split(',')[1],
+                    fileName: `sayfa_${i}.${format}`,
+                    pageNumber: i
+                });
+
+                completedPages++;
+                const progress = (completedPages / totalPages) * 100;
+                updateProgress(progress);
+                showStatus(`Sayfa ${i}/${totalPages} dönüştürüldü...`, 'info');
+            }
+
+            updateProgress(100);
+            showStatus(`✅ ${totalPages} sayfa başarıyla dönüştürüldü!`, 'success');
+            document.getElementById('batchDownloadBtn').disabled = false;
+        }
+
+        document.getElementById('convertBtn').addEventListener('click', async () => {
+            const file = document.getElementById('pdfFile').files[0];
+            const format = document.getElementById('imageFormat').value;
+            const quality = document.getElementById('imageQuality').value;
+            const scale = document.getElementById('imageScale').value;
+            
+            if (!file) {
+                showStatus('PDF dosyası seçmelisiniz.', 'error');
+                return;
+            }
+
+            try {
+                await renderPDFtoImages(file, format, quality, scale);
+            } catch (e) {
+                console.error(e);
+                showStatus('❌ Hata: ' + e.message, 'error');
+            }
+        });
+
+        // Tümünü kaydet butonu
+        document.getElementById('batchDownloadBtn').addEventListener('click', async () => {
+            if (convertedImages.length === 0) {
+                showStatus('Önce PDF\'yi dönüştürün!', 'error');
+                return;
+            }
+
+            showStatus('Tüm görseller kaydediliyor...', 'info');
+            
+            for (const image of convertedImages) {
+                saveImageToFlutter(image.data, image.fileName);
+                await new Promise(resolve => setTimeout(resolve, 100)); // Küçük gecikme
+            }
+            
+            showStatus(`✅ ${convertedImages.length} görsel kaydedildi!`, 'success');
+        });
+
+        // Flutter handler kaydı
+        if (window.flutter_inappwebview) {
+            window.flutter_inappwebview.registerHandler('saveFile', function(data, callback) {
+                console.log('Dosya kaydedildi:', data);
+            });
+        }
+    </script>
+</body>
+</html>
