@@ -103,7 +103,11 @@ class _ToolsWebViewState extends State<ToolsWebView> {
       decoration: BoxDecoration(
         color: widget.darkMode ? Colors.grey[900] : Colors.grey[50],
         border: Border(
-          bottom: BorderSide(color: widget.darkMode ? Colors.grey[800] : Colors.grey[300]),
+          bottom: BorderSide(
+            color: widget.darkMode 
+                ? Colors.grey[800]!  // ! operator ekleyerek null olmadığını belirtiyoruz
+                : Colors.grey[300]!,
+          ),
         ),
       ),
       child: Padding(
@@ -141,7 +145,9 @@ class _ToolsWebViewState extends State<ToolsWebView> {
                           decoration: BoxDecoration(
                             color: isSelected 
                                 ? tool.color.withOpacity(0.2)
-                                : widget.darkMode ? Colors.grey[800] : Colors.white,
+                                : widget.darkMode 
+                                    ? Colors.grey[800]!  // ! operator ekleyerek null olmadığını belirtiyoruz
+                                    : Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: isSelected ? tool.color : Colors.transparent,
@@ -152,7 +158,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
                                 BoxShadow(
                                   color: Colors.black12,
                                   blurRadius: 4,
-                                  offset: Offset(0, 2),
+                                  offset: const Offset(0, 2),
                                 ),
                             ],
                           ),
@@ -163,7 +169,9 @@ class _ToolsWebViewState extends State<ToolsWebView> {
                                 tool.icon,
                                 size: 24,
                                 color: isSelected ? tool.color : 
-                                    widget.darkMode ? Colors.grey[400] : Colors.grey[600],
+                                    widget.darkMode 
+                                        ? Colors.grey[400]!  // ! operator ekleyerek null olmadığını belirtiyoruz
+                                        : Colors.grey[600]!,
                               ),
                               const SizedBox(height: 8),
                               Text(
@@ -172,7 +180,9 @@ class _ToolsWebViewState extends State<ToolsWebView> {
                                   fontSize: 10,
                                   fontWeight: FontWeight.w500,
                                   color: isSelected ? tool.color : 
-                                      widget.darkMode ? Colors.grey[400] : Colors.grey[600],
+                                      widget.darkMode 
+                                          ? Colors.grey[400]!  // ! operator ekleyerek null olmadığını belirtiyoruz
+                                          : Colors.grey[600]!,
                                 ),
                                 textAlign: TextAlign.center,
                                 maxLines: 2,
@@ -205,8 +215,9 @@ class _ToolsWebViewState extends State<ToolsWebView> {
         toolbarHeight: 48,
         leading: _currentTool != 'main' 
             ? IconButton(
-                icon: Icon(Icons.arrow_back,
-                  color: widget.darkMode ? Colors.red : Colors.white
+                icon: Icon(
+                  Icons.arrow_back,
+                  color: widget.darkMode ? Colors.red : Colors.white,
                 ),
                 onPressed: _goBack,
               )
@@ -267,7 +278,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
                 if (!_loaded)
                   Center(
                     child: CircularProgressIndicator(
-                      color: widget.darkMode ? Colors.red : Colors.red
+                      color: widget.darkMode ? Colors.red : Colors.red,
                     ),
                   ),
               ],
@@ -284,7 +295,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
                 _showQuickActionDialog();
               },
               backgroundColor: widget.darkMode ? Colors.red : Colors.red,
-              child: Icon(
+              child: const Icon(
                 Icons.bolt,
                 color: Colors.white,
               ),
@@ -300,11 +311,11 @@ class _ToolsWebViewState extends State<ToolsWebView> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('${tool.title} - Hızlı Aksiyonlar'),
-        content: Text('Bu araç için hızlı işlemler yakında eklenecek.'),
+        content: const Text('Bu araç için hızlı işlemler yakında eklenecek.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Kapat'),
+            child: const Text('Kapat'),
           ),
         ],
       ),
