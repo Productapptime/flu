@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR - Metin Çıkar</title>
+    <script src="tesseract.min.js"></script>
+    <script src="pdf.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #d32f2f;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .box {
+            background: #f8f9fa;
+            border-left: 4px solid #d32f2f;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        button {
+            background: #d32f2f;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px 5px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #b71c1c;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .preview-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        #preview {
+            max-width: 100%;
+            max-height: 400px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            display: none;
+        }
+        .status {
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        #ocrOutput {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+            line-height: 1.4;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #d32f2f;
+            border-radius: 10px;
+            transition: width 0.3s;
+        }
+        .file-type-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .file-type-btn {
+            flex: 1;
+            padding: 12px;
+            background: #e9ecef;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            font-weight: bold;
+        }
+        .file-type-btn.active {
+            background: #d32f2f;
+            color: white;
+            border-color: #d32f2f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 OCR - Metin Çıkar</h1>
+        <p class="description">PDF veya görselden metin çıkarın</p>
+        
+        <div class="box">
+            <h3>Giriş Türünü Seçin</h3>
+            <div class="file-type-buttons">
+                <div class="file-type-btn active" data-type="image">📷 Görsel</div>
+                <div class="file-type-btn" data-type="pdf">📄 PDF</div>
+            </div>
+
+            <div id="imageSection">
+                <input type="file" id="imageInput" accept="image/*">
+            </div>
+
+            <div id="pdfSection" style="display: none;">
+                <input type="file" id="pdfInput" accept="application/pdf">
+                <select id="pdfPageSelect" style="display: none;">
+                    <option value="">Sayfa seçin</option>
+                </select>
+            </div>
+
+            <div class="preview-container">
+                <img id="preview" alt="Önizleme">
+                <canvas id="canvas" style="display: none;"></canvas>
+            </div>
+
+            <button id="ocrBtn" disabled>Metni Çıkar ve Kaydet</button>
+            <div id="ocrStatus" class="status">Henüz işlem yapılmadı...</div>
+        </div>
+        
+        <div class="box">
+            <h3>Çıkarılan Metin:</h3>
+            <div id="ocrOutput">Henüz OCR yapılmadı...</div>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+        let selectedImage = null;
+        let currentFileType = 'image';
+
+        const fileTypeBtns = document.querySelectorAll('.file-type-btn');
+        const imageSection = document.getElementById('imageSection');
+        const pdfSection = document.getElementById('pdfSection');
+        const imageInput = document.getElementById('imageInput');
+        const pdfInput = document.getElementById('pdfInput');
+        const pdfPageSelect = document.getElementById('pdfPageSelect');
+        const preview = document.getElementById('preview');
+        const canvas = document.getElementById('canvas');
+        const ocrBtn = document.getElementById('ocrBtn');
+        const ocrStatus = document.getElementById('ocrStatus');
+        const ocrOutput = document.getElementById('ocrOutput');
+
+        function showStatus(message, type) {
+            ocrStatus.textContent = message;
+            ocrStatus.className = `status ${type}`;
+        }
+
+        function updateProgress(percent) {
+            // Progress bar güncelleme
+            showStatus(`İşlem devam ediyor: %${percent}`, 'info');
+        }
+
+        // Dosya türü değiştirme
+        fileTypeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                fileTypeBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFileType = btn.dataset.type;
+                
+                if (currentFileType === 'image') {
+                    imageSection.style.display = 'block';
+                    pdfSection.style.display = 'none';
+                } else {
+                    imageSection.style.display = 'none';
+                    pdfSection.style.display = 'block';
+                }
+                
+                resetForm();
+            });
+        });
+
+        // Görsel yükleme
+        imageInput.addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = event => {
+                preview.src = event.target.result;
+                preview.style.display = 'block';
+                selectedImage = preview.src;
+                ocrBtn.disabled = false;
+                showStatus('✅ Görsel hazır, metni çıkarabilirsiniz.', 'success');
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // PDF yükleme ve sayfa seçimi
+        pdfInput.addEventListener('change', async e => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                showStatus('PDF yükleniyor...', 'info');
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                
+                // Sayfa seçeneklerini doldur
+                pdfPageSelect.innerHTML = '<option value="">Sayfa seçin</option>';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.textContent = `Sayfa ${i}`;
+                    pdfPageSelect.appendChild(option);
+                }
+                pdfPageSelect.style.display = 'block';
+                showStatus('PDF yüklendi. Lütfen bir sayfa seçin.', 'success');
+                
+            } catch (error) {
+                showStatus('PDF yüklenirken hata oluştu.', 'error');
+            }
+        });
+
+        // PDF sayfası seçimi
+        pdfPageSelect.addEventListener('change', async e => {
+            const pageNum = parseInt(e.target.value);
+            if (!pageNum) return;
+
+            try {
+                showStatus('Sayfa işleniyor...', 'info');
+                const file = pdfInput.files[0];
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                const page = await pdf.getPage(pageNum);
+                
+                const viewport = page.getViewport({ scale: 2.0 });
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                const ctx = canvas.getContext('2d');
+                
+                await page.render({ canvasContext: ctx, viewport }).promise;
+                
+                preview.src = canvas.toDataURL();
+                preview.style.display = 'block';
+                selectedImage = preview.src;
+                ocrBtn.disabled = false;
+                showStatus('✅ Sayfa hazır, metni çıkarabilirsiniz.', 'success');
+                
+            } catch (error) {
+                showStatus('Sayfa işlenirken hata oluştu.', 'error');
+            }
+        });
+
+        function resetForm() {
+            preview.style.display = 'none';
+            ocrBtn.disabled = true;
+            ocrOutput.textContent = 'Henüz OCR yapılmadı...';
+            showStatus('Henüz işlem yapılmadı...', 'info');
+            selectedImage = null;
+            imageInput.value = '';
+            pdfInput.value = '';
+            pdfPageSelect.style.display = 'none';
+            pdfPageSelect.innerHTML = '<option value="">Sayfa seçin</option>';
+        }
+
+        // OCR işlemi
+        ocrBtn.addEventListener('click', async () => {
+            if (!selectedImage) {
+                showStatus('Lütfen önce bir görsel seçin!', 'error');
+                return;
+            }
+            
+            try {
+                showStatus('⏳ OCR işleniyor...', 'info');
+                ocrOutput.textContent = 'Metin çıkarılıyor...';
+                
+                const { data: { text } } = await Tesseract.recognize(
+                    selectedImage, 
+                    'tur+eng',
+                    {
+                        logger: m => {
+                            if (m.status === 'recognizing text') {
+                                updateProgress(Math.round(m.progress * 100));
+                            }
+                        }
+                    }
+                );
+                
+                const cleanedText = text.trim();
+                ocrOutput.textContent = cleanedText || '❌ Metin bulunamadı.';
+                
+                if (cleanedText) {
+                    // Flutter'a metni kaydetmesi için mesaj gönder
+                    if (window.flutter_inappwebview) {
+                        const fileName = `ocr_metin_${new Date().getTime()}.txt`;
+                        const textBlob = new Blob([cleanedText], { type: 'text/plain' });
+                        const reader = new FileReader();
+                        reader.onloadend = function() {
+                            const base64 = reader.result.split(',')[1];
+                            window.flutter_inappwebview.callHandler('saveFile', fileName, base64);
+                        };
+                        reader.readAsDataURL(textBlob);
+                    }
+                    showStatus('✅ OCR tamamlandı! Metin kaydedildi.', 'success');
+                } else {
+                    showStatus('❌ Metin bulunamadı.', 'error');
+                }
+                
+            } catch (err) {
+                console.error('OCR hatası:', err);
+                ocrOutput.textContent = '❌ OCR işlemi başarısız: ' + err.message;
+                showStatus('❌ OCR başarısız!', 'error');
+            }
+        });
+
+        // Flutter handler kaydı
+        if (window.flutter_inappwebview) {
+            window.flutter_inappwebview.registerHandler('saveFile', function(data, callback) {
+                console.log('Dosya kaydedildi:', data);
+            });
+        }
+    </script>
+</body>
+</html>
