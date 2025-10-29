@@ -15,7 +15,8 @@
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true"
         android:hardwareAccelerated="true"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:preserveLegacyExternalStorage="true">
 
         <activity
             android:name=".MainActivity"
@@ -41,6 +42,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:mimeType="application/pdf" />
+            </intent-filter>
+
+            <!-- 🔐 Tüm dosya erişimi için intent filter -->
+            <intent-filter>
+                <action android:name="android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="package" android:path="com.example.hello_flutter" />
             </intent-filter>
         </activity>
 
