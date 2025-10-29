@@ -23,10 +23,9 @@ class FileService {
       }
       
       return files.map((file) => File(file.path!)).toList();
-    } on PlatformException catch (e) {
-      throw FilePickerException('Dosya seçim hatası: ${e.message}');
     } catch (e) {
-      throw FilePickerException('Beklenmeyen hata: $e');
+      // PlatformException yerine genel exception kullan
+      throw FilePickerException('Dosya seçim hatası: $e');
     }
   }
 
