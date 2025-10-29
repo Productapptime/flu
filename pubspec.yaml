@@ -35,22 +35,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  assets:
-    # ✅ Araçlar - Tekil dosyalar
-    - assets/tools.html
-    - assets/pdf.worker.min.js
-    - assets/pdf.min.js
-    - assets/pdf-lib.min.js
-    - assets/tesseract.min.js
-    
-    # ✅ PDF.js core dosyaları - Klasör olarak
-    - assets/build/
-    
-    # ✅ PDF.js viewer dosyaları - Klasör olarak  
-    - assets/web/
-    
-    # ✅ Görseller - Klasör olarak
-    - assets/web/images/
-    
-    # ✅ Locale dosyaları - TEK SEFERDE tüm klasör
-    - assets/web/locale/
+  
