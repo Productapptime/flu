@@ -1,4 +1,5 @@
 // lib/services/data_persistence.dart
+import 'dart:io'; // ✅ BU EKLENDİ
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -51,7 +52,7 @@ class DataPersistence {
       
       for (final itemJson in itemsJson) {
         if (itemJson['type'] == 'file') {
-          final file = File(itemJson['path']);
+          final file = File(itemJson['path']); // ✅ File import edildi
           if (await file.exists()) {
             items.add(PdfFileItem(
               id: itemJson['id'],
@@ -68,7 +69,7 @@ class DataPersistence {
           items.add(PdfFolderItem(
             id: itemJson['id'],
             name: itemJson['name'],
-            color: Color(itemJson['color']),
+            color: Color(itemJson['color']), // ✅ Color import edildi
             parentFolderId: itemJson['parentFolderId'],
           ));
         }
