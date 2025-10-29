@@ -20,19 +20,6 @@ jobs:
         with:
           flutter-version: '3.24.0'
 
-      # 🧠 Yeni eklenen adım — pubspec.yaml içindeki assets listesini otomatik güncelle
-      - name: Auto-update assets in pubspec.yaml
-        run: |
-          echo "🔄 Updating asset list in pubspec.yaml..."
-          ASSET_LIST=$(find assets -type f | sed 's/^/    - /')
-          awk -v assets="$ASSET_LIST" '
-            /^  assets:/ {print; print assets; inAssets=1; next}
-            inAssets && /^    - / {next}
-            inAssets && !/^    - / {inAssets=0}
-            {print}
-          ' pubspec.yaml > pubspec.tmp && mv pubspec.tmp pubspec.yaml
-          echo "✅ Assets updated successfully."
-
       - name: Clean project
         run: flutter clean
 
