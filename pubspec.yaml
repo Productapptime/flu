@@ -1,21 +1,31 @@
-name: hello_flutter
-description: A simple Flutter app for GitHub Actions demo.
+name: pdf_manager_plus
+description: A comprehensive PDF management and editing application with advanced tools.
 publish_to: 'none'
 
+# ✅ SDK versiyonunu koru (stabil)
 environment:
   sdk: '>=3.4.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  file_picker: ^8.0.6
-  flutter_inappwebview: ^6.1.5
-  shared_preferences: ^2.5.3
-  path: ^1.8.3
-  share_plus: ^7.0.1
-  printing: ^5.9.1        
-  image_picker: ^1.0.4 
-        
+  
+  # 📄 PDF & File Management - GÜNCEL VERSİYONLAR
+  file_picker: ^8.1.0  # 8.0.6 -> 8.1.0
+  flutter_inappwebview: ^6.1.5  # ✅ Zaten güncel
+  shared_preferences: ^2.2.2    # 2.5.3 -> 2.2.2 (daha stabil)
+  path: ^1.8.3  # ✅ Zaten güncel
+  
+  # 🔗 Sharing & Printing - GÜNCEL VERSİYONLAR
+  share_plus: ^9.0.0   # 7.0.1 -> 9.0.0
+  printing: ^5.15.0    # 5.9.1 -> 5.15.0
+  
+  # 🖼️ Image Processing - GÜNCEL VERSİYON
+  image_picker: ^1.1.2  # 1.0.4 -> 1.1.2
+  
+  # 🆕 GEREKLİ YENİ PAKETLER
+  permission_handler: ^11.0.1  # İzin yönetimi için
+  path_provider: ^2.1.1       # Dosya yolu yönetimi
 
 dev_dependencies:
   flutter_test:
@@ -26,136 +36,21 @@ flutter:
   uses-material-design: true
 
   assets:
-     # Araçlar
+    # ✅ Araçlar - Tekil dosyalar
     - assets/tools.html
     - assets/pdf.worker.min.js
     - assets/pdf.min.js
     - assets/pdf-lib.min.js
     - assets/tesseract.min.js
     
-    # PDF.js core dosyaları
-    - assets/build/pdf.mjs
-    - assets/build/pdf.worker.mjs
-
-    # PDF.js viewer dosyaları
-    - assets/web/viewer.html
-    - assets/web/viewer.mjs
-    - assets/web/viewer.css
-
-    # Görseller
+    # ✅ PDF.js core dosyaları - Klasör olarak
+    - assets/build/
+    
+    # ✅ PDF.js viewer dosyaları - Klasör olarak  
+    - assets/web/
+    
+    # ✅ Görseller - Klasör olarak
     - assets/web/images/
-
-    # Locale dosyaları (tek tek tanımlı)
-    - assets/web/locale/ach/viewer.ftl
-    - assets/web/locale/af/viewer.ftl
-    - assets/web/locale/an/viewer.ftl
-    - assets/web/locale/ar/viewer.ftl
-    - assets/web/locale/ast/viewer.ftl
-    - assets/web/locale/az/viewer.ftl
-    - assets/web/locale/be/viewer.ftl
-    - assets/web/locale/bg/viewer.ftl
-    - assets/web/locale/bn/viewer.ftl
-    - assets/web/locale/bo/viewer.ftl
-    - assets/web/locale/br/viewer.ftl
-    - assets/web/locale/brx/viewer.ftl
-    - assets/web/locale/bs/viewer.ftl
-    - assets/web/locale/ca/viewer.ftl
-    - assets/web/locale/cak/viewer.ftl
-    - assets/web/locale/ckb/viewer.ftl
-    - assets/web/locale/cs/viewer.ftl
-    - assets/web/locale/cy/viewer.ftl
-    - assets/web/locale/da/viewer.ftl
-    - assets/web/locale/de/viewer.ftl
-    - assets/web/locale/dsb/viewer.ftl
-    - assets/web/locale/el/viewer.ftl
-    - assets/web/locale/en-CA/viewer.ftl
-    - assets/web/locale/en-GB/viewer.ftl
-    - assets/web/locale/en-US/viewer.ftl
-    - assets/web/locale/eo/viewer.ftl
-    - assets/web/locale/es-AR/viewer.ftl
-    - assets/web/locale/es-CL/viewer.ftl
-    - assets/web/locale/es-ES/viewer.ftl
-    - assets/web/locale/es-MX/viewer.ftl
-    - assets/web/locale/et/viewer.ftl
-    - assets/web/locale/eu/viewer.ftl
-    - assets/web/locale/fa/viewer.ftl
-    - assets/web/locale/ff/viewer.ftl
-    - assets/web/locale/fi/viewer.ftl
-    - assets/web/locale/fr/viewer.ftl
-    - assets/web/locale/fur/viewer.ftl
-    - assets/web/locale/fy-NL/viewer.ftl
-    - assets/web/locale/ga-IE/viewer.ftl
-    - assets/web/locale/gd/viewer.ftl
-    - assets/web/locale/gl/viewer.ftl
-    - assets/web/locale/gn/viewer.ftl
-    - assets/web/locale/gu-IN/viewer.ftl
-    - assets/web/locale/he/viewer.ftl
-    - assets/web/locale/hi-IN/viewer.ftl
-    - assets/web/locale/hr/viewer.ftl
-    - assets/web/locale/hsb/viewer.ftl
-    - assets/web/locale/hu/viewer.ftl
-    - assets/web/locale/hy-AM/viewer.ftl
-    - assets/web/locale/hye/viewer.ftl
-    - assets/web/locale/ia/viewer.ftl
-    - assets/web/locale/id/viewer.ftl
-    - assets/web/locale/is/viewer.ftl
-    - assets/web/locale/it/viewer.ftl
-    - assets/web/locale/ja/viewer.ftl
-    - assets/web/locale/ka/viewer.ftl
-    - assets/web/locale/kab/viewer.ftl
-    - assets/web/locale/kk/viewer.ftl
-    - assets/web/locale/km/viewer.ftl
-    - assets/web/locale/kn/viewer.ftl
-    - assets/web/locale/ko/viewer.ftl
-    - assets/web/locale/lij/viewer.ftl
-    - assets/web/locale/lo/viewer.ftl
-    - assets/web/locale/lt/viewer.ftl
-    - assets/web/locale/ltg/viewer.ftl
-    - assets/web/locale/lv/viewer.ftl
-    - assets/web/locale/meh/viewer.ftl
-    - assets/web/locale/mk/viewer.ftl
-    - assets/web/locale/ml/viewer.ftl
-    - assets/web/locale/mr/viewer.ftl
-    - assets/web/locale/ms/viewer.ftl
-    - assets/web/locale/my/viewer.ftl
-    - assets/web/locale/nb-NO/viewer.ftl
-    - assets/web/locale/ne-NP/viewer.ftl
-    - assets/web/locale/nl/viewer.ftl
-    - assets/web/locale/nn-NO/viewer.ftl
-    - assets/web/locale/oc/viewer.ftl
-    - assets/web/locale/pa-IN/viewer.ftl
-    - assets/web/locale/pl/viewer.ftl
-    - assets/web/locale/pt-BR/viewer.ftl
-    - assets/web/locale/pt-PT/viewer.ftl
-    - assets/web/locale/rm/viewer.ftl
-    - assets/web/locale/ro/viewer.ftl
-    - assets/web/locale/ru/viewer.ftl
-    - assets/web/locale/sat/viewer.ftl
-    - assets/web/locale/sc/viewer.ftl
-    - assets/web/locale/scn/viewer.ftl
-    - assets/web/locale/sco/viewer.ftl
-    - assets/web/locale/si/viewer.ftl
-    - assets/web/locale/sk/viewer.ftl
-    - assets/web/locale/skr/viewer.ftl
-    - assets/web/locale/sl/viewer.ftl
-    - assets/web/locale/son/viewer.ftl
-    - assets/web/locale/sq/viewer.ftl
-    - assets/web/locale/sr/viewer.ftl
-    - assets/web/locale/sv-SE/viewer.ftl
-    - assets/web/locale/szl/viewer.ftl
-    - assets/web/locale/ta/viewer.ftl
-    - assets/web/locale/te/viewer.ftl
-    - assets/web/locale/tg/viewer.ftl
-    - assets/web/locale/th/viewer.ftl
-    - assets/web/locale/tl/viewer.ftl
-    - assets/web/locale/tr/viewer.ftl
-    - assets/web/locale/trs/viewer.ftl
-    - assets/web/locale/uk/viewer.ftl
-    - assets/web/locale/ur/viewer.ftl
-    - assets/web/locale/uz/viewer.ftl
-    - assets/web/locale/vi/viewer.ftl
-    - assets/web/locale/wo/viewer.ftl
-    - assets/web/locale/xh/viewer.ftl
-    - assets/web/locale/zh-CN/viewer.ftl
-    - assets/web/locale/zh-TW/viewer.ftl
-    - assets/web/locale/locale.json
+    
+    # ✅ Locale dosyaları - TEK SEFERDE tüm klasör
+    - assets/web/locale/
