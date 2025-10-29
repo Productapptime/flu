@@ -1,3 +1,7 @@
+bu yeni html eri assets ekledim pubspec.yaml için de ekleme yapacam nasil
+
+asagidakini bozmadan ekleme yap
+
 name: pdf_manager_plus
 description: A comprehensive PDF management and editing application with advanced tools.
 publish_to: 'none'
@@ -43,14 +47,6 @@ flutter:
     - assets/pdf.worker.min.js
     - assets/tesseract.min.js
     - assets/tools.html
-    
-    # --- YENİ TOOLS HTML DOSYALARI ---
-    - assets/merge.html
-    - assets/split.html
-    - assets/reorder_subtraction.html
-    - assets/compress.html
-    - assets/ocr.html
-    - assets/pdf_to_photo.html
     
     # --- assets/build/ altındaki dosyalar (29632.jpg görseline göre) ---
     - assets/build/pdf.mjs
