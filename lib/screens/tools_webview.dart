@@ -135,7 +135,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
             Expanded(
               child: GridView.builder(
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2, // 2x3 grid
+                  crossAxisCount: 2,
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
                   childAspectRatio: 1.2,
@@ -232,7 +232,6 @@ class _ToolsWebViewState extends State<ToolsWebView> {
       ),
       body: Column(
         children: [
-          // WebView Content
           Expanded(
             child: Stack(
               children: [
@@ -248,12 +247,12 @@ class _ToolsWebViewState extends State<ToolsWebView> {
                     supportZoom: true,
                     useHybridComposition: true,
                     transparentBackground: true,
+                    clearCache: true,
                   ),
                   onWebViewCreated: (controller) {
                     _controller = controller;
                   },
                   onLoadStart: (controller, url) {
-                    // URL'deki tool bilgisini al
                     final urlString = url?.toString() ?? '';
                     if (urlString.contains('#tool=')) {
                       final toolId = urlString.split('#tool=').last;
@@ -268,8 +267,77 @@ class _ToolsWebViewState extends State<ToolsWebView> {
                       });
                     }
                   },
-                  onLoadStop: (controller, url) {
+                  onLoadStop: (controller, url) async {
                     setState(() => _loaded = true);
+                    
+                    // JavaScript'i manuel olarak çalıştır
+                    await controller.evaluateJavascript(
+                      source: """
+                        // PDF.js worker'ı ayarla
+                        if (typeof pdfjsLib !== 'undefined') {
+                          pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+                        }
+                        
+                        // URL'deki tool parametresini kontrol et
+                        function checkUrlTool() {
+                          const hash = window.location.hash;
+                          if (hash.includes('tool=')) {
+                            const toolId = hash.split('tool=')[1];
+                            showTool(toolId);
+                          } else {
+                            showMainPage();
+                          }
+                        }
+                        
+                        // Ana sayfayı göster
+                        function showMainPage() {
+                          const mainPage = document.getElementById('main-page');
+                          if (mainPage) mainPage.style.display = 'block';
+                          document.querySelectorAll('.tool-content').forEach(content => {
+                            content.classList.remove('active');
+                          });
+                        }
+                        
+                        // Tool göster
+                        function showTool(toolId) {
+                          const mainPage = document.getElementById('main-page');
+                          if (mainPage) mainPage.style.display = 'none';
+                          document.querySelectorAll('.tool-content').forEach(content => {
+                            content.classList.remove('active');
+                          });
+                          
+                          const toolElement = document.getElementById(toolId + '-tool');
+                          if (toolElement) {
+                            toolElement.classList.add('active');
+                          }
+                        }
+                        
+                        // Sayfa yüklendiğinde URL'yi kontrol et
+                        if (document.readyState === 'loading') {
+                          document.addEventListener('DOMContentLoaded', checkUrlTool);
+                        } else {
+                          checkUrlTool();
+                        }
+                        
+                        // Hash değişikliklerini dinle
+                        window.addEventListener('hashchange', checkUrlTool);
+                        
+                        // Klasik tool-card tıklamaları
+                        document.querySelectorAll('.tool-card').forEach(card => {
+                          card.addEventListener('click', () => {
+                            const toolId = card.getAttribute('data-tool');
+                            window.location.hash = 'tool=' + toolId;
+                          });
+                        });
+                        
+                        // Back butonları
+                        document.querySelectorAll('.back-button').forEach(btn => {
+                          btn.addEventListener('click', () => {
+                            window.location.hash = '';
+                          });
+                        });
+                      """
+                    );
                   },
                   onConsoleMessage: (controller, message) {
                     debugPrint('TOOLS WEBVIEW: ${message.message}');
