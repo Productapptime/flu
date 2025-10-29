@@ -9,10 +9,14 @@ import 'package:share_plus/share_plus.dart';
 import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// ✅ MODELS IMPORT - YENİ EKLENDİ
+// ✅ MODELS IMPORT
 import 'models/file_system_item.dart';
 import 'models/pdf_file_item.dart';
 import 'models/pdf_folder_item.dart';
+
+// ✅ SERVICES IMPORT - YENİ EKLENDİ
+import 'services/data_persistence.dart';
+import 'services/file_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -82,95 +86,6 @@ class PDFApp extends StatelessWidget {
 }
 
 /* ----------------------
-   Data Persistence
----------------------- */
-class DataPersistence {
-  static const String _itemsKey = 'file_system_items';
-  static const String _darkModeKey = 'dark_mode';
-
-  static Future<void> saveItems(List<FileSystemItem> items) async {
-    final prefs = await SharedPreferences.getInstance();
-    final List<Map<String, dynamic>> itemsJson = [];
-    
-    for (final item in items) {
-      if (item is PdfFileItem) {
-        itemsJson.add({
-          'type': 'file',
-          'id': item.id,
-          'name': item.name,
-          'path': item.file.path,
-          'folderId': item.folderId,
-          'lastOpened': item.lastOpened?.millisecondsSinceEpoch,
-          'isFavorite': item.isFavorite,
-        });
-      } else if (item is PdfFolderItem) {
-        itemsJson.add({
-          'type': 'folder',
-          'id': item.id,
-          'name': item.name,
-          'color': item.color.value,
-          'parentFolderId': item.parentFolderId,
-        });
-      }
-    }
-    
-    await prefs.setString(_itemsKey, json.encode(itemsJson));
-  }
-
-  static Future<List<FileSystemItem>> loadItems() async {
-    final prefs = await SharedPreferences.getInstance();
-    final itemsJsonString = prefs.getString(_itemsKey);
-    
-    if (itemsJsonString == null) return [];
-    
-    try {
-      final List<dynamic> itemsJson = json.decode(itemsJsonString);
-      final List<FileSystemItem> items = [];
-      
-      for (final itemJson in itemsJson) {
-        if (itemJson['type'] == 'file') {
-          final file = File(itemJson['path']);
-          if (await file.exists()) {
-            items.add(PdfFileItem(
-              id: itemJson['id'],
-              name: itemJson['name'],
-              file: file,
-              folderId: itemJson['folderId'],
-              lastOpened: itemJson['lastOpened'] != null 
-                  ? DateTime.fromMillisecondsSinceEpoch(itemJson['lastOpened'])
-                  : null,
-              isFavorite: itemJson['isFavorite'] ?? false,
-            ));
-          }
-        } else if (itemJson['type'] == 'folder') {
-          items.add(PdfFolderItem(
-            id: itemJson['id'],
-            name: itemJson['name'],
-            color: Color(itemJson['color']),
-            parentFolderId: itemJson['parentFolderId'],
-          ));
-        }
-      }
-      
-      return items;
-    } catch (e) {
-      debugPrint('Error loading items: $e');
-      return [];
-    }
-  }
-
-  static Future<bool> loadDarkMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_darkModeKey) ?? false;
-  }
-
-  static Future<void> saveDarkMode(bool isDark) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_darkModeKey, isDark);
-  }
-}
-
-/* ----------------------
    Home Page
 ---------------------- */
 class PDFHomePage extends StatefulWidget {
@@ -220,60 +135,50 @@ class _PDFHomePageState extends State<PDFHomePage> {
 
   Future<void> _importPdf() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-        allowMultiple: true,
-      );
+      final files = await FileService.importPdfFiles();
+      int importedCount = 0;
       
-      if (result != null && result.files.isNotEmpty) {
-        int importedCount = 0;
+      for (final file in files) {
+        final path = file.path;
+        String name = FileService.generateUniqueFileName(
+          _allItems.map((item) => item.name).toList(),
+          path
+        );
         
-        for (final file in result.files) {
-          if (file.path != null) {
-            final path = file.path!;
-            final f = File(path);
-            String name = p.basename(path);
-            
-            int counter = 1;
-            String baseName = p.basenameWithoutExtension(path);
-            String extension = p.extension(path);
-            
-            while (_allItems.any((it) => it is PdfFileItem && (it as PdfFileItem).file.path == path) || 
-                   _allItems.any((it) => it.name == name)) {
-              name = '$baseName($counter)$extension';
-              counter++;
-            }
-            
-            final id = 'file_${DateTime.now().millisecondsSinceEpoch}_${importedCount}';
-            
-            setState(() {
-              final newFile = PdfFileItem(
-                id: id, 
-                name: name, 
-                file: f,
-                folderId: _currentFolder?.id,
-              );
-              _allItems.add(newFile);
-              
-              if (_currentFolder != null) {
-                _currentFolder!.items.add(newFile);
-              }
-            });
-            importedCount++;
-          }
-        }
+        final id = FileService.generateFileId();
         
-        _saveData();
-        
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$importedCount dosya içe aktarıldı'))
+        setState(() {
+          final newFile = PdfFileItem(
+            id: id, 
+            name: name, 
+            file: file,
+            folderId: _currentFolder?.id,
           );
-        }
+          _allItems.add(newFile);
+          
+          if (_currentFolder != null) {
+            _currentFolder!.items.add(newFile);
+          }
+        });
+        importedCount++;
+      }
+      
+      _saveData();
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$importedCount dosya içe aktarıldı'))
+        );
+      }
+    } on FilePickerException catch (e) {
+      debugPrint('Import error: ${e.message}');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('İçe aktarma başarısız: ${e.message}'))
+        );
       }
     } catch (e) {
-      debugPrint('Import error: $e');
+      debugPrint('Unexpected import error: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('İçe aktarma başarısız'))
@@ -287,7 +192,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
     if (name != null && name.trim().isNotEmpty) {
       setState(() {
         final newFolder = PdfFolderItem(
-          id: 'folder_${DateTime.now().millisecondsSinceEpoch}', 
+          id: FileService.generateFolderId(), 
           name: name.trim(),
           parentFolderId: _currentFolder?.id,
         );
@@ -410,7 +315,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
       if (!exists) {
         setState(() {
           _allItems.add(PdfFileItem(
-            id: 'file_${DateTime.now().millisecondsSinceEpoch}', 
+            id: FileService.generateFileId(), 
             name: p.basename(returned.path), 
             file: returned,
             folderId: _currentFolder?.id,
@@ -564,7 +469,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
     final name = await _showTextInput('Yeni klasör adı', '');
     if (name != null && name.trim().isNotEmpty) {
       final newFolder = PdfFolderItem(
-        id: 'folder_${DateTime.now().millisecondsSinceEpoch}', 
+        id: FileService.generateFolderId(), 
         name: name.trim()
       );
       setState(() {
