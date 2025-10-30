@@ -222,6 +222,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
   }
 
   void _openFile(PdfFileItem item) async {
+    // ✅ SADECE ViewerScreen'de viewer.html ile açıldığında lastOpened güncellenecek
     final returned = await Navigator.push<File?>(
       context,
       MaterialPageRoute(builder: (_) => ViewerScreen(
@@ -229,6 +230,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
         fileName: item.name,
         dark: _darkModeManual,
         onFileOpened: () {
+          // ✅ SADECE BURADA: Viewer.html ile açıldığında lastOpened güncelle
           setState(() {
             item.lastOpened = DateTime.now();
           });
@@ -644,7 +646,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
     _notify('${value ? 'Karanlık' : 'Açık'} mod ${value ? 'açıldı' : 'kapatıldı'}');
   }
 
-  // ✅ Tools sayfasını açma metodu - GÜNCELLENDİ
+  // ✅ Tools sayfasını açma metodu
   void _openToolsPage() {
     Navigator.pushAndRemoveUntil(
       context,
@@ -832,7 +834,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
             _selectionMode = false; 
             _selectedItems.clear(); 
             
-            // ✅ Tools sayfasına tıklanırsa aç - GÜNCELLENDİ
+            // ✅ Tools sayfasına tıklanırsa aç
             if (i == 3) {
               _openToolsPage();
             }
