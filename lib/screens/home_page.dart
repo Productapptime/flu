@@ -81,10 +81,11 @@ class _PDFHomePageState extends State<PDFHomePage> {
             file: file,
             folderId: _currentFolder?.id,
           );
-          _allItems.add(newFile);
           
           if (_currentFolder != null) {
             _currentFolder!.items.add(newFile);
+          } else {
+            _allItems.add(newFile);
           }
         });
         importedCount++;
@@ -123,10 +124,11 @@ class _PDFHomePageState extends State<PDFHomePage> {
           name: name.trim(),
           parentFolderId: _currentFolder?.id,
         );
-        _allItems.add(newFolder);
         
         if (_currentFolder != null) {
           _currentFolder!.items.add(newFolder);
+        } else {
+          _allItems.add(newFolder);
         }
       });
       _saveData();
@@ -309,10 +311,15 @@ class _PDFHomePageState extends State<PDFHomePage> {
               Navigator.pop(ctx);
               setState(() {
                 for (final item in _selectedItems) {
-                  _allItems.remove(item);
+                  if (_currentFolder != null) {
+                    _currentFolder!.items.remove(item);
+                  } else {
+                    _allItems.remove(item);
+                  }
                   
                   if (item is PdfFolderItem) {
-                    _allItems.removeWhere((it) => it.parentFolderId == item.id);
+                    // Alt klasörleri ve dosyaları da temizle
+                    _removeFolderContents(item);
                   }
                 }
                 _selectedItems.clear();
@@ -326,6 +333,15 @@ class _PDFHomePageState extends State<PDFHomePage> {
         ],
       ),
     );
+  }
+
+  void _removeFolderContents(PdfFolderItem folder) {
+    for (final item in folder.items) {
+      if (item is PdfFolderItem) {
+        _removeFolderContents(item);
+      }
+      _allItems.remove(item);
+    }
   }
 
   void _moveItem(FileSystemItem item) {
@@ -410,19 +426,21 @@ class _PDFHomePageState extends State<PDFHomePage> {
 
   void _performMove(FileSystemItem item, PdfFolderItem? targetFolder) {
     setState(() {
-      if (item.parentFolderId != null) {
-        final previousFolder = _allItems.whereType<PdfFolderItem>()
-            .firstWhere((f) => f.id == item.parentFolderId);
-        previousFolder.items.remove(item);
+      // Mevcut konumdan kaldır
+      if (_currentFolder != null) {
+        _currentFolder!.items.remove(item);
       } else {
         _allItems.remove(item);
       }
       
+      // Yeni parent ID'yi ayarla
       item.parentFolderId = targetFolder?.id;
       
       if (targetFolder != null) {
+        // Yeni klasöre ekle
         targetFolder.items.add(item);
       } else {
+        // Root'a ekle
         _allItems.add(item);
       }
     });
@@ -557,11 +575,15 @@ class _PDFHomePageState extends State<PDFHomePage> {
             onPressed: () {
               Navigator.pop(ctx);
               setState(() {
-                _allItems.remove(item);
+                if (_currentFolder != null) {
+                  _currentFolder!.items.remove(item);
+                } else {
+                  _allItems.remove(item);
+                }
                 _selectedItems.remove(item);
                 
                 if (item is PdfFolderItem) {
-                  _allItems.removeWhere((it) => it.parentFolderId == item.id);
+                  _removeFolderContents(item);
                 }
               });
               _saveData();
@@ -651,7 +673,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => ToolsWebView(darkMode: _darkModeManual)),
-      (route) => false, // Tüm önceki sayfaları temizle
+      (route) => false,
     );
   }
 
@@ -662,15 +684,34 @@ class _PDFHomePageState extends State<PDFHomePage> {
 
     switch (_bottomIndex) {
       case 0: // All Files
-        return _allItems;
+        // ✅ KLASÖRLER HER ZAMAN ÜSTTE, DOSYALAR ALTTA
+        final folders = _allItems.whereType<PdfFolderItem>().toList();
+        final files = _allItems.whereType<PdfFileItem>().toList();
+        
+        // Klasörleri isme göre sırala
+        folders.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        // Dosyaları isme göre sırala
+        files.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        
+        return [...folders, ...files];
+        
       case 1: // Recent
         final files = _allItems.whereType<PdfFileItem>().toList();
-        // ✅ KRİTİK DÜZELTME: Sadece lastOpened değeri null olmayan dosyaları göster
+        // ✅ Sadece lastOpened değeri null olmayan dosyaları göster
         final recentFiles = files.where((file) => file.lastOpened != null).toList();
         recentFiles.sort((a, b) => (b.lastOpened ?? DateTime(0)).compareTo(a.lastOpened ?? DateTime(0)));
         return recentFiles.take(20).toList();
+        
       case 2: // Favorites
-        return _allItems.where((it) => it is PdfFileItem && (it as PdfFileItem).isFavorite).toList();
+        // ✅ Favorilerde de klasörler üstte, favori dosyalar altta
+        final favoriteFolders = _allItems.whereType<PdfFolderItem>().toList();
+        final favoriteFiles = _allItems.whereType<PdfFileItem>().where((file) => file.isFavorite).toList();
+        
+        favoriteFolders.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        favoriteFiles.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        
+        return [...favoriteFolders, ...favoriteFiles];
+        
       default:
         return _allItems;
     }
@@ -836,7 +877,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
             _selectionMode = false; 
             _selectedItems.clear(); 
             
-            // ✅ Tools sayfasına tıklanırsa aç
             if (i == 3) {
               _openToolsPage();
             }
@@ -936,7 +976,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
   }
 
   Widget _buildBody() {
-    // ✅ Tools sayfasına tıklandığında boş bir sayfa göster (çünkü ToolsWebView ayrı açılacak)
     if (_bottomIndex == 3) {
       return Center(
         child: Column(
