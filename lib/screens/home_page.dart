@@ -644,11 +644,12 @@ class _PDFHomePageState extends State<PDFHomePage> {
     _notify('${value ? 'Karanlık' : 'Açık'} mod ${value ? 'açıldı' : 'kapatıldı'}');
   }
 
-  // ✅ Tools sayfasını açma metodu
+  // ✅ Tools sayfasını açma metodu - GÜNCELLENDİ
   void _openToolsPage() {
-    Navigator.push(
+    Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => ToolsWebView(darkMode: _darkModeManual)),
+      (route) => false, // Tüm önceki sayfaları temizle
     );
   }
 
@@ -831,7 +832,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
             _selectionMode = false; 
             _selectedItems.clear(); 
             
-            // ✅ Tools sayfasına tıklanırsa aç
+            // ✅ Tools sayfasına tıklanırsa aç - GÜNCELLENDİ
             if (i == 3) {
               _openToolsPage();
             }
