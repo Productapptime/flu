@@ -222,7 +222,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
   }
 
   void _openFile(PdfFileItem item) async {
-    // ✅ SADECE ViewerScreen'de viewer.html ile açıldığında lastOpened güncellenecek
     final returned = await Navigator.push<File?>(
       context,
       MaterialPageRoute(builder: (_) => ViewerScreen(
@@ -230,7 +229,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
         fileName: item.name,
         dark: _darkModeManual,
         onFileOpened: () {
-          // ✅ SADECE BURADA: Viewer.html ile açıldığında lastOpened güncelle
+          // 1. Mevcut dosya açıldığında lastOpened güncellenir ve Recent'a düşer.
           setState(() {
             item.lastOpened = DateTime.now();
           });
@@ -243,12 +242,20 @@ class _PDFHomePageState extends State<PDFHomePage> {
       final exists = _allItems.any((it) => it is PdfFileItem && (it as PdfFileItem).file.path == returned.path);
       if (!exists) {
         setState(() {
-          _allItems.add(PdfFileItem(
+          // ViewerScreen'den yeni bir dosya döndüyse (örn. kaydedilen düzenleme), 
+          // bu yeni dosyayı lastOpened'ı ayarlanmış olarak ekle.
+          final newFile = PdfFileItem(
             id: FileService.generateFileId(), 
             name: p.basename(returned.path), 
             file: returned,
             folderId: _currentFolder?.id,
-          ));
+            lastOpened: DateTime.now(), // <-- Güncelleme: Yeni dosya için lastOpened ayarlandı.
+          );
+          _allItems.add(newFile);
+          
+          if (_currentFolder != null) {
+            _currentFolder!.items.add(newFile);
+          }
         });
         _saveData();
       }
@@ -646,7 +653,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
     _notify('${value ? 'Karanlık' : 'Açık'} mod ${value ? 'açıldı' : 'kapatıldı'}');
   }
 
-  // ✅ Tools sayfasını açma metodu
+  // Tools sayfasına geçiş metodu
   void _openToolsPage() {
     Navigator.pushAndRemoveUntil(
       context,
@@ -665,6 +672,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
         return _allItems;
       case 1: // Recent
         final files = _allItems.whereType<PdfFileItem>().toList();
+        // Sadece ViewerScreen ile açılan dosyalar (lastOpened != null olanlar) listelenir.
         files.sort((a, b) => (b.lastOpened ?? DateTime(0)).compareTo(a.lastOpened ?? DateTime(0)));
         return files.take(20).toList();
       case 2: // Favorites
@@ -834,7 +842,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
             _selectionMode = false; 
             _selectedItems.clear(); 
             
-            // ✅ Tools sayfasına tıklanırsa aç
+            // Tools sayfasına tıklanırsa aç
             if (i == 3) {
               _openToolsPage();
             }
@@ -934,7 +942,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
   }
 
   Widget _buildBody() {
-    // ✅ Tools sayfasına tıklandığında boş bir sayfa göster (çünkü ToolsWebView ayrı açılacak)
+    // Tools sayfasına tıklandığında boş bir sayfa göster (çünkü ToolsWebView ayrı açılacak)
     if (_bottomIndex == 3) {
       return Center(
         child: Column(
