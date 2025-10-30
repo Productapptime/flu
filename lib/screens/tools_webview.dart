@@ -6,6 +6,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'home_page.dart'; // ✅ PDFHomePage'ı import et
 
 class ToolsWebView extends StatefulWidget {
   final bool darkMode;
@@ -84,7 +85,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
   void _goBackToHome() {
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => const PDFHomePage()),
+      MaterialPageRoute(builder: (context) => PDFHomePage()), // ✅ const kaldırıldı
       (route) => false,
     );
   }
@@ -250,7 +251,7 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
   void _goBackToHome() {
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => const PDFHomePage()),
+      MaterialPageRoute(builder: (context) => PDFHomePage()), // ✅ const kaldırıldı
       (route) => false,
     );
   }
