@@ -775,7 +775,7 @@ See https://github.com/adobe-type-tools/cmap-resources
 
 
 <!-- Flutter'a PDF kaydedildi bildirimi gönderen script -->
-<!-- Flutter'a PDF kaydedildi bildirimi gönderen script -->
+<!-- 📄 Flutter kaydetme entegrasyonu -->
 <script>
   // 🔄 Flutter’a haber veren fonksiyon
   function notifyFlutterSave(filename, base64Data) {
@@ -786,173 +786,38 @@ See https://github.com/adobe-type-tools/cmap-resources
     }
   }
 
-  // 📥 Download butonunu yakalayan fonksiyon
-  function setupSaveHandler() {
-    const saveBtn = document.getElementById('downloadButton') || 
-                    document.getElementById('secondaryDownload');
-    
-    if (saveBtn) {
-      console.log('Save butonu bulundu, handler ekleniyor...');
-      
-      // Mevcut click event'ini temizle ve yeni handler ekle
-      const newSaveBtn = saveBtn.cloneNode(true);
-      saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
-      
-      // Yeni butona event listener ekle
-      const currentSaveBtn = document.getElementById('downloadButton') || 
-                            document.getElementById('secondaryDownload');
-      
-      currentSaveBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        try {
-          const app = window.PDFViewerApplication;
-          if (!app || !app.pdfDocument) {
-            console.error('PDF document not loaded');
-            return;
+  document.addEventListener("webviewerloaded", () => {
+    const tryAttach = () => {
+      const saveBtn = document.querySelector("#download") || document.querySelector("#secondaryDownload");
+      if (saveBtn) {
+        saveBtn.addEventListener("click", async () => {
+          try {
+            const app = window.PDFViewerApplication;
+            const filename = app?.baseUrl?.split("/").pop() || "report.pdf";
+
+            // 🧩 PDF.js’ten güncel dosya blob’unu al
+            const data = await app.pdfDocument.saveDocument();
+            const blob = new Blob([data], { type: "application/pdf" });
+
+            // 📦 Blob’u Base64’e çevir
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64Data = reader.result.split(",")[1];
+              notifyFlutterSave(filename, base64Data);
+            };
+            reader.readAsDataURL(blob);
+          } catch (e) {
+            console.error("Save error:", e);
           }
-
-          // Mevcut PDF dosya adını al
-          const url = app.url || window.location.href;
-          let filename = 'document.pdf';
-          
-          // URL'den dosya adını çıkar
-          if (url) {
-            const urlParams = new URLSearchParams(window.location.search);
-            const fileParam = urlParams.get('file');
-            if (fileParam) {
-              filename = fileParam.split('/').pop() || filename;
-            } else {
-              filename = url.split('/').pop() || filename;
-            }
-          }
-          
-          console.log('PDF kaydediliyor:', filename);
-          
-          // PDF verisini al
-          const pdfData = await app.pdfDocument.saveDocument();
-          const blob = new Blob([pdfData], { type: "application/pdf" });
-          
-          // Base64'e çevir
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64 = reader.result.split(',')[1];
-            console.log('Base64 veri hazır, Flutter\'a gönderiliyor...');
-            
-            // Flutter'a gönder
-            notifyFlutterSave(filename, base64);
-            
-            // Kullanıcıya bildirim göster
-            showSaveNotification(filename);
-          };
-          reader.readAsDataURL(blob);
-          
-        } catch (error) {
-          console.error('Save error:', error);
-          showErrorNotification('Kaydetme hatası: ' + error.message);
-        }
-      });
-      
-      console.log('Save handler başarıyla kuruldu');
-    } else {
-      console.log('Save butonu bulunamadı, tekrar deneyeceğim...');
-      setTimeout(setupSaveHandler, 1000);
-    }
-  }
-
-  // ✅ Başarılı kayıt bildirimi
-  function showSaveNotification(filename) {
-    // Geçici bir bildirim göster
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #4CAF50;
-      color: white;
-      padding: 12px 20px;
-      border-radius: 8px;
-      z-index: 10000;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      font-family: Arial, sans-serif;
-      font-size: 14px;
-    `;
-    notification.innerHTML = `✅ <strong>${filename}</strong> kaydedildi!`;
-    
-    document.body.appendChild(notification);
-    
-    // 3 saniye sonra kaldır
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.parentNode.removeChild(notification);
+        });
+      } else {
+        setTimeout(tryAttach, 1000);
       }
-    }, 3000);
-  }
-
-  // ❌ Hata bildirimi
-  function showErrorNotification(message) {
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #f44336;
-      color: white;
-      padding: 12px 20px;
-      border-radius: 8px;
-      z-index: 10000;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      font-family: Arial, sans-serif;
-      font-size: 14px;
-    `;
-    notification.innerHTML = `❌ <strong>Hata:</strong> ${message}`;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.parentNode.removeChild(notification);
-      }
-    }, 4000);
-  }
-
-  // 📄 PDF.js yüklendiğinde handler'ı kur
-  document.addEventListener('webviewerloaded', () => {
-    console.log('PDF Viewer yüklendi, save handler kuruluyor...');
-    setTimeout(setupSaveHandler, 500);
+    };
+    tryAttach();
   });
-
-  // 🎯 Sayfa yüklendiğinde de deneyelim
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(setupSaveHandler, 1000);
-    });
-  } else {
-    setTimeout(setupSaveHandler, 1000);
-  }
-
-  // 🔍 Sürekli kontrol (PDF.js geç yüklenebilir)
-  let retryCount = 0;
-  const maxRetries = 10;
-  
-  const retryInterval = setInterval(() => {
-    const saveBtn = document.getElementById('downloadButton') || 
-                    document.getElementById('secondaryDownload');
-    
-    if (saveBtn && !saveBtn.hasAttribute('data-flutter-handler-added')) {
-      setupSaveHandler();
-      saveBtn.setAttribute('data-flutter-handler-added', 'true');
-      clearInterval(retryInterval);
-    }
-    
-    retryCount++;
-    if (retryCount >= maxRetries) {
-      clearInterval(retryInterval);
-      console.log('Save butonu bulunamadı, maksimum deneme sayısına ulaşıldı');
-    }
-  }, 1000);
 </script>
+      
       
   </body>
 </html>
