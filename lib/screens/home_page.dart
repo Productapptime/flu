@@ -433,6 +433,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
               Navigator.pop(ctx);
               setState(() {
                 for (final item in _selectedItems) {
+                  // ✅ AYNI NESNEYİ SİL - referans korunsun
                   if (_currentFolder != null) {
                     _currentFolder!.items.remove(item);
                   } else {
@@ -440,7 +441,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
                   }
                   
                   if (item is PdfFolderItem) {
-                    // Alt klasörleri ve dosyaları da temizle
                     _removeFolderContents(item);
                   }
                 }
@@ -458,10 +458,12 @@ class _PDFHomePageState extends State<PDFHomePage> {
   }
 
   void _removeFolderContents(PdfFolderItem folder) {
+    // ✅ Sadece listeden kaldır, nesneleri tamamen silme
     for (final item in folder.items) {
       if (item is PdfFolderItem) {
         _removeFolderContents(item);
       }
+      // Sadece listeden kaldır, nesneyi tamamen silme
       _allItems.remove(item);
     }
   }
@@ -548,26 +550,30 @@ class _PDFHomePageState extends State<PDFHomePage> {
 
   void _performMove(FileSystemItem item, PdfFolderItem? targetFolder) {
     setState(() {
-      // Mevcut konumdan kaldır
+      // ✅ MEVCUT NESNEYİ KORU - YENİ NESNE OLUŞTURMA!
+      
+      // 1. Önce mevcut konumdan kaldır
       if (item.parentFolderId != null) {
+        // Klasör içindeyse, o klasörden kaldır
         final previousFolder = _allItems.whereType<PdfFolderItem>()
             .firstWhere((f) => f.id == item.parentFolderId);
         previousFolder.items.remove(item);
       } else {
+        // Root'taysa, root'tan kaldır
         _allItems.remove(item);
       }
       
-      // ✅ SADECE parentFolderId güncelle, yeni nesne oluşturma!
+      // 2. Parent ID'yi güncelle (yeni nesne oluşturmadan!)
       item.parentFolderId = targetFolder?.id;
       
+      // 3. Yeni konuma ekle
       if (targetFolder != null) {
-        // Yeni klasöre ekle
         targetFolder.items.add(item);
       } else {
-        // Root'a ekle
         _allItems.add(item);
       }
     });
+    
     _saveData();
     _notify('"${item.name}" ${targetFolder?.name ?? "Tüm Dosyalar"} klasörüne taşındı');
   }
@@ -707,6 +713,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
             onPressed: () {
               Navigator.pop(ctx);
               setState(() {
+                // ✅ AYNI NESNEYİ SİL - referans korunsun
                 if (_currentFolder != null) {
                   _currentFolder!.items.remove(item);
                 } else {
