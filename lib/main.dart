@@ -72,7 +72,7 @@ class PdfFolderItem extends FileSystemItem {
   PdfFolderItem({
     required String id,
     required String name,
-    this.color = Colors.blue, // ✅ Varsayılan renk mavi yapıldı
+    this.color = Colors.blue,
     String? parentFolderId,
   }) : super(
     id: id, 
@@ -146,11 +146,12 @@ class DataPersistence {
 
   static Future<void> saveItems(List<FileSystemItem> items) async {
     final prefs = await SharedPreferences.getInstance();
-    final List<Map<String, dynamic>> itemsJson = [];
     
-    for (final item in items) {
+    final List<Map<String, dynamic>> allItemsJson = [];
+    
+    void addItemToJson(FileSystemItem item) {
       if (item is PdfFileItem) {
-        itemsJson.add({
+        allItemsJson.add({
           'type': 'file',
           'id': item.id,
           'name': item.name,
@@ -160,17 +161,25 @@ class DataPersistence {
           'isFavorite': item.isFavorite,
         });
       } else if (item is PdfFolderItem) {
-        itemsJson.add({
+        allItemsJson.add({
           'type': 'folder',
           'id': item.id,
           'name': item.name,
           'color': item.color.value,
           'parentFolderId': item.parentFolderId,
         });
+        
+        for (final childItem in item.items) {
+          addItemToJson(childItem);
+        }
       }
     }
     
-    await prefs.setString(_itemsKey, json.encode(itemsJson));
+    for (final item in items) {
+      addItemToJson(item);
+    }
+    
+    await prefs.setString(_itemsKey, json.encode(allItemsJson));
   }
 
   static Future<List<FileSystemItem>> loadItems() async {
@@ -181,13 +190,26 @@ class DataPersistence {
     
     try {
       final List<dynamic> itemsJson = json.decode(itemsJsonString);
-      final List<FileSystemItem> items = [];
+      final List<FileSystemItem> allItems = [];
+      final Map<String, PdfFolderItem> folderMap = {};
+      
+      for (final itemJson in itemsJson) {
+        if (itemJson['type'] == 'folder') {
+          final folder = PdfFolderItem(
+            id: itemJson['id'],
+            name: itemJson['name'],
+            color: Color(itemJson['color']),
+            parentFolderId: itemJson['parentFolderId'],
+          );
+          folderMap[folder.id] = folder;
+        }
+      }
       
       for (final itemJson in itemsJson) {
         if (itemJson['type'] == 'file') {
           final file = File(itemJson['path']);
           if (await file.exists()) {
-            items.add(PdfFileItem(
+            final fileItem = PdfFileItem(
               id: itemJson['id'],
               name: itemJson['name'],
               file: file,
@@ -196,19 +218,27 @@ class DataPersistence {
                   ? DateTime.fromMillisecondsSinceEpoch(itemJson['lastOpened'])
                   : null,
               isFavorite: itemJson['isFavorite'] ?? false,
-            ));
+            );
+            
+            if (fileItem.folderId != null && folderMap.containsKey(fileItem.folderId)) {
+              folderMap[fileItem.folderId]!.items.add(fileItem);
+            } else {
+              allItems.add(fileItem);
+            }
           }
         } else if (itemJson['type'] == 'folder') {
-          items.add(PdfFolderItem(
-            id: itemJson['id'],
-            name: itemJson['name'],
-            color: Color(itemJson['color']),
-            parentFolderId: itemJson['parentFolderId'],
-          ));
+          final folderId = itemJson['id'];
+          final parentFolderId = itemJson['parentFolderId'];
+          
+          if (parentFolderId != null && folderMap.containsKey(parentFolderId)) {
+            folderMap[parentFolderId]!.items.add(folderMap[folderId]!);
+          } else {
+            allItems.add(folderMap[folderId]!);
+          }
         }
       }
       
-      return items;
+      return allItems;
     } catch (e) {
       debugPrint('Error loading items: $e');
       return [];
@@ -255,10 +285,10 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         hintText: 'Dosyalarda ara...', 
         border: InputBorder.none,
         hintStyle: TextStyle(
-          color: darkMode ? Colors.red.withOpacity(0.7) : Colors.white70
+          color: darkMode ? Colors.white70 : Colors.white70
         )
       ),
-      style: TextStyle(color: darkMode ? Colors.red : Colors.white),
+      style: TextStyle(color: darkMode ? Colors.white : Colors.white),
       autofocus: true,
       onChanged: onSearchChanged,
     );
@@ -271,7 +301,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       centerTitle: true,
       leading: leadingIcon,
       backgroundColor: darkMode ? Colors.black : Colors.red,
-      foregroundColor: darkMode ? Colors.red : Colors.white,
+      foregroundColor: Colors.white,
       actions: actions,
     );
   }
@@ -474,10 +504,10 @@ class PDFApp extends StatelessWidget {
         scaffoldBackgroundColor: Colors.black,
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.black,
-          foregroundColor: Colors.red,
+          foregroundColor: Colors.white,
           toolbarHeight: 48,
         ),
-        iconTheme: IconThemeData(color: Colors.red),
+        iconTheme: const IconThemeData(color: Colors.white),
         bottomNavigationBarTheme: BottomNavigationBarThemeData(
           selectedLabelStyle: const TextStyle(fontSize: 12, color: Colors.red),
           unselectedLabelStyle: TextStyle(fontSize: 12, color: Colors.grey[400]),
@@ -711,7 +741,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
               _sortByDateAscending(); 
             }
           ),
-          // ✅ Türe göre sıralama KALDIRILDI
         ]),
       );
     });
@@ -815,7 +844,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
         fileName: item.name,
         dark: _darkModeManual,
         onFileOpened: () {
-          // ✅ PDF viewer.html ile açıldığında lastOpened güncellenir
           setState(() {
             item.lastOpened = DateTime.now();
           });
@@ -1281,19 +1309,37 @@ class _PDFHomePageState extends State<PDFHomePage> {
         return [...folders, ...files];
         
       case 1: // Recent
-        final files = _allItems.whereType<PdfFileItem>().toList();
-        final recentFiles = files.where((file) => file.lastOpened != null).toList();
+        final allFiles = _getAllPdfFiles();
+        final recentFiles = allFiles.where((file) => file.lastOpened != null).toList();
         recentFiles.sort((a, b) => (b.lastOpened ?? DateTime(0)).compareTo(a.lastOpened ?? DateTime(0)));
         return recentFiles.take(20).toList();
         
       case 2: // Favorites
-        final favoriteFiles = _allItems.whereType<PdfFileItem>().where((file) => file.isFavorite).toList();
+        final allFiles = _getAllPdfFiles();
+        final favoriteFiles = allFiles.where((file) => file.isFavorite).toList();
         favoriteFiles.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
         return favoriteFiles;
         
       default:
         return _allItems;
     }
+  }
+
+  List<PdfFileItem> _getAllPdfFiles() {
+    final List<PdfFileItem> allFiles = [];
+    
+    void addFilesFromItems(List<FileSystemItem> items) {
+      for (final item in items) {
+        if (item is PdfFileItem) {
+          allFiles.add(item);
+        } else if (item is PdfFolderItem) {
+          addFilesFromItems(item.items);
+        }
+      }
+    }
+    
+    addFilesFromItems(_allItems);
+    return allFiles;
   }
 
   Widget _buildFileItem(PdfFileItem item, bool isSelected) {
@@ -1362,29 +1408,32 @@ class _PDFHomePageState extends State<PDFHomePage> {
     return Scaffold(
       drawer: _currentFolder == null && !_isSearching ? Drawer(
         child: Container(
-          color: _darkModeManual ? Colors.black : Colors.white, // ✅ Drawer arkaplan rengi
+          color: _darkModeManual ? Colors.black : Colors.white,
           child: SafeArea(
             child: Column(children: [
-              // ✅ HEADER - Beyaz alan kaldırıldı, header tamamen dolu
               Container(
                 width: double.infinity,
-                height: 120, // Header yüksekliği
+                height: 120,
                 decoration: BoxDecoration(
                   color: _darkModeManual ? Colors.black : Colors.red,
                 ),
                 child: Center(
                   child: Text('PDF Okuyucu & Yönetici', 
                     style: theme.textTheme.headlineSmall?.copyWith(
-                      color: _darkModeManual ? Colors.red : Colors.white
+                      color: Colors.white
                     )
                   ),
                 ),
               ),
               ListTile(
                 leading: Icon(Icons.cloud_upload, 
-                  color: _darkModeManual ? Colors.red : null
+                  color: _darkModeManual ? Colors.white : Colors.black
                 ), 
-                title: const Text('PDF İçe Aktar'), 
+                title: Text('PDF İçe Aktar',
+                  style: TextStyle(
+                    color: _darkModeManual ? Colors.white : Colors.black
+                  )
+                ), 
                 onTap: () { 
                   Navigator.pop(context); 
                   _importPdf(); 
@@ -1392,9 +1441,13 @@ class _PDFHomePageState extends State<PDFHomePage> {
               ),
               ListTile(
                 leading: Icon(Icons.create_new_folder,
-                  color: _darkModeManual ? Colors.red : null
+                  color: _darkModeManual ? Colors.white : Colors.black
                 ), 
-                title: const Text('Klasör Oluştur'), 
+                title: Text('Klasör Oluştur',
+                  style: TextStyle(
+                    color: _darkModeManual ? Colors.white : Colors.black
+                  )
+                ), 
                 onTap: () { 
                   Navigator.pop(context); 
                   _createFolder(); 
@@ -1402,9 +1455,13 @@ class _PDFHomePageState extends State<PDFHomePage> {
               ),
               ListTile(
                 leading: Icon(Icons.info,
-                  color: _darkModeManual ? Colors.red : null
+                  color: _darkModeManual ? Colors.white : Colors.black
                 ), 
-                title: const Text('Hakkında'), 
+                title: Text('Hakkında',
+                  style: TextStyle(
+                    color: _darkModeManual ? Colors.white : Colors.black
+                  )
+                ), 
                 onTap: () { 
                   Navigator.pop(context); 
                   _showAboutDialog(); 
@@ -1413,17 +1470,25 @@ class _PDFHomePageState extends State<PDFHomePage> {
               SwitchListTile(
                 secondary: Icon(
                   _darkModeManual ? Icons.light_mode : Icons.dark_mode,
-                  color: _darkModeManual ? Colors.red : null,
+                  color: _darkModeManual ? Colors.white : Colors.black,
                 ),
-                title: Text(_darkModeManual ? 'Açık Mod' : 'Karanlık Mod'),
+                title: Text(_darkModeManual ? 'Açık Mod' : 'Karanlık Mod',
+                  style: TextStyle(
+                    color: _darkModeManual ? Colors.white : Colors.black
+                  )
+                ),
                 value: _darkModeManual,
                 onChanged: _toggleDarkMode,
               ),
               ListTile(
                 leading: Icon(Icons.policy,
-                  color: _darkModeManual ? Colors.red : null
+                  color: _darkModeManual ? Colors.white : Colors.black
                 ), 
-                title: const Text('Gizlilik'), 
+                title: Text('Gizlilik',
+                  style: TextStyle(
+                    color: _darkModeManual ? Colors.white : Colors.black
+                  )
+                ), 
                 onTap: () { 
                   Navigator.pop(context); 
                   _notify('Gizlilik Politikası'); 
@@ -1431,9 +1496,13 @@ class _PDFHomePageState extends State<PDFHomePage> {
               ),
               ListTile(
                 leading: Icon(Icons.language,
-                  color: _darkModeManual ? Colors.red : null
+                  color: _darkModeManual ? Colors.white : Colors.black
                 ), 
-                title: const Text('Dil'), 
+                title: Text('Dil',
+                  style: TextStyle(
+                    color: _darkModeManual ? Colors.white : Colors.black
+                  )
+                ), 
                 onTap: () { 
                   Navigator.pop(context); 
                   _notify('Dil Seçenekleri'); 
@@ -1481,8 +1550,8 @@ class _PDFHomePageState extends State<PDFHomePage> {
   Widget? _buildLeadingIcon() {
     if (_isSearching) {
       return IconButton(
-        icon: Icon(Icons.close,
-          color: _darkModeManual ? Colors.red : Colors.white
+        icon: const Icon(Icons.close,
+          color: Colors.white
         ),
         onPressed: () {
           setState(() {
@@ -1493,8 +1562,8 @@ class _PDFHomePageState extends State<PDFHomePage> {
       );
     } else if (_currentFolder != null) {
       return IconButton(
-        icon: Icon(Icons.arrow_back,
-          color: _darkModeManual ? Colors.red : Colors.white
+        icon: const Icon(Icons.arrow_back,
+          color: Colors.white
         ),
         onPressed: _exitFolder,
       );
@@ -1507,34 +1576,33 @@ class _PDFHomePageState extends State<PDFHomePage> {
     
     if (_selectionMode && _selectedItems.isNotEmpty) {
       return [
-        // ✅ SEÇİM MODUNDA: Tümünü Seç ve Tüm Seçimi Kaldır ikonları
         IconButton(
-          icon: Icon(Icons.select_all,
-            color: _darkModeManual ? Colors.red : Colors.white
+          icon: const Icon(Icons.select_all,
+            color: Colors.white
           ),
           onPressed: _selectAllItems,
         ),
         IconButton(
-          icon: Icon(Icons.deselect,
-            color: _darkModeManual ? Colors.red : Colors.white
+          icon: const Icon(Icons.deselect,
+            color: Colors.white
           ),
           onPressed: _deselectAllItems,
         ),
         IconButton(
-          icon: Icon(Icons.print,
-            color: _darkModeManual ? Colors.red : Colors.white
+          icon: const Icon(Icons.print,
+            color: Colors.white
           ),
           onPressed: () => _printFiles(_selectedItems),
         ),
         IconButton(
-          icon: Icon(Icons.share,
-            color: _darkModeManual ? Colors.red : Colors.white
+          icon: const Icon(Icons.share,
+            color: Colors.white
           ),
           onPressed: () => _shareFiles(_selectedItems),
         ),
         IconButton(
-          icon: Icon(Icons.delete,
-            color: _darkModeManual ? Colors.red : Colors.white
+          icon: const Icon(Icons.delete,
+            color: Colors.white
           ),
           onPressed: _deleteSelectedItems,
         ),
@@ -1543,16 +1611,15 @@ class _PDFHomePageState extends State<PDFHomePage> {
     
     return [
       if (!_isSearching) ...[
-        // ✅ KLASÖR OLUŞTUR İKONU - AppBar'a eklendi
         IconButton(
-          icon: Icon(Icons.create_new_folder,
-            color: _darkModeManual ? Colors.red : Colors.white
+          icon: const Icon(Icons.create_new_folder,
+            color: Colors.white
           ), 
           onPressed: _createFolder
         ),
         IconButton(
-          icon: Icon(Icons.search,
-            color: _darkModeManual ? Colors.red : Colors.white
+          icon: const Icon(Icons.search,
+            color: Colors.white
           ), 
           onPressed: () { 
             setState(() => _isSearching = !_isSearching); 
@@ -1560,15 +1627,14 @@ class _PDFHomePageState extends State<PDFHomePage> {
           }
         ),
         IconButton(
-          icon: Icon(Icons.sort,
-            color: _darkModeManual ? Colors.red : Colors.white
+          icon: const Icon(Icons.sort,
+            color: Colors.white
           ), 
           onPressed: _showSortSheet
         ),
-        // ✅ GERÇEK SEÇİM İKONU - Checkbox yerine select_all ikonu
         IconButton(
-          icon: Icon(Icons.select_all,
-            color: _darkModeManual ? Colors.red : Colors.white
+          icon: const Icon(Icons.select_all,
+            color: Colors.white
           ), 
           onPressed: _toggleSelectionMode
         ),
@@ -1758,18 +1824,18 @@ class _ViewerScreenState extends State<ViewerScreen> {
         appBar: AppBar(
           title: Text(widget.fileName),
           backgroundColor: widget.dark ? Colors.black : Colors.red,
-          foregroundColor: widget.dark ? Colors.red : Colors.white,
+          foregroundColor: Colors.white,
           toolbarHeight: 48,
           actions: [
             IconButton(
-              icon: Icon(Icons.print,
-                color: widget.dark ? Colors.red : Colors.white
+              icon: const Icon(Icons.print,
+                color: Colors.white
               ),
               onPressed: _printFile,
             ),
             IconButton(
-              icon: Icon(Icons.share,
-                color: widget.dark ? Colors.red : Colors.white
+              icon: const Icon(Icons.share,
+                color: Colors.white
               ),
               onPressed: () async {
                 try {
@@ -1919,12 +1985,12 @@ class _ToolsWebViewState extends State<ToolsWebView> {
         appBar: AppBar(
           title: const Text('PDF Araçları'),
           backgroundColor: widget.darkMode ? Colors.black : Colors.red,
-          foregroundColor: widget.darkMode ? Colors.red : Colors.white,
+          foregroundColor: Colors.white,
           toolbarHeight: 48,
           leading: IconButton(
-            icon: Icon(
+            icon: const Icon(
               Icons.arrow_back,
-              color: widget.darkMode ? Colors.red : Colors.white,
+              color: Colors.white,
             ),
             onPressed: _goBackToHome,
           ),
@@ -2308,12 +2374,12 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
         appBar: AppBar(
           title: Text(widget.tool.title),
           backgroundColor: widget.darkMode ? Colors.black : Colors.red,
-          foregroundColor: widget.darkMode ? Colors.red : Colors.white,
+          foregroundColor: Colors.white,
           toolbarHeight: 48,
           leading: IconButton(
-            icon: Icon(
+            icon: const Icon(
               Icons.arrow_back,
-              color: widget.darkMode ? Colors.red : Colors.white,
+              color: Colors.white,
             ),
             onPressed: _goBackToHome,
           ),
