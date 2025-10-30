@@ -80,58 +80,80 @@ class _ToolsWebViewState extends State<ToolsWebView> {
     );
   }
 
+  // Geri butonu için fonksiyon
+  void _goBackToHome() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const PDFHomePage()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('PDF Araçları'),
-        backgroundColor: widget.darkMode ? Colors.black : Colors.red,
-        foregroundColor: widget.darkMode ? Colors.red : Colors.white,
-        toolbarHeight: 48,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 16),
-            const Center(
-              child: Text(
-                'PDF Araçları Merkezi',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+    return WillPopScope(
+      onWillPop: () async {
+        _goBackToHome();
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('PDF Araçları'),
+          backgroundColor: widget.darkMode ? Colors.black : Colors.red,
+          foregroundColor: widget.darkMode ? Colors.red : Colors.white,
+          toolbarHeight: 48,
+          leading: IconButton(
+            icon: Icon(
+              Icons.arrow_back,
+              color: widget.darkMode ? Colors.red : Colors.white,
+            ),
+            onPressed: _goBackToHome,
+          ),
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
+              const Center(
+                child: Text(
+                  'PDF Araçları Merkezi',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            const Center(
-              child: Text(
-                'PDF dosyalarınızı düzenleyin, dönüştürün ve yönetin',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
+              const SizedBox(height: 8),
+              const Center(
+                child: Text(
+                  'PDF dosyalarınızı düzenleyin, dönüştürün ve yönetin',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: 32),
-            Expanded(
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 1.0,
+              const SizedBox(height: 32),
+              Expanded(
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 1.0,
+                  ),
+                  itemCount: _tools.length,
+                  itemBuilder: (context, index) {
+                    final tool = _tools[index];
+                    return _buildToolCard(tool);
+                  },
                 ),
-                itemCount: _tools.length,
-                itemBuilder: (context, index) {
-                  final tool = _tools[index];
-                  return _buildToolCard(tool);
-                },
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -223,6 +245,15 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
   double _progress = 0;
   bool _isLoading = true;
   bool _isCheckingPermission = false;
+
+  // Geri butonu için fonksiyon
+  void _goBackToHome() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const PDFHomePage()),
+      (route) => false,
+    );
+  }
 
   // İzin durumunu saklamak için SharedPreferences
   Future<bool> _hasStoragePermission() async {
@@ -470,12 +501,7 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        // Geri tuşuna basınca direkt ana sayfaya dön
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => ToolsWebView(darkMode: widget.darkMode)),
-          (route) => false,
-        );
+        _goBackToHome();
         return false;
       },
       child: Scaffold(
@@ -489,14 +515,7 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
               Icons.arrow_back,
               color: widget.darkMode ? Colors.red : Colors.white,
             ),
-            onPressed: () {
-              // AppBar'daki geri tuşu için de aynı işlem
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => ToolsWebView(darkMode: widget.darkMode)),
-                (route) => false,
-              );
-            },
+            onPressed: _goBackToHome,
           ),
         ),
         body: Column(
