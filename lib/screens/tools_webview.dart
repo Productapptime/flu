@@ -68,7 +68,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
   ];
 
   void _openTool(ToolItem tool) {
-    Navigator.push(
+    Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
         builder: (context) => ToolDetailScreen(
@@ -76,6 +76,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
           darkMode: widget.darkMode,
         ),
       ),
+      (route) => false, // Tüm önceki sayfaları temizle
     );
   }
 
@@ -146,7 +147,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
         onTap: () => _openTool(tool),
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.all(12), // Padding'i biraz azalttık
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
@@ -168,26 +169,26 @@ class _ToolsWebViewState extends State<ToolsWebView> {
             children: [
               Icon(
                 tool.icon,
-                size: 28, // İkon boyutunu küçülttük
+                size: 28,
                 color: tool.color,
               ),
-              const SizedBox(height: 8), // Boşluğu azalttık
+              const SizedBox(height: 8),
               Text(
                 tool.title,
                 style: const TextStyle(
-                  fontSize: 14, // Başlık yazı boyutunu küçülttük
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                   height: 1.2,
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 4), // Boşluğu azalttık
+              const SizedBox(height: 4),
               Expanded(
                 child: Text(
                   tool.description,
                   style: TextStyle(
-                    fontSize: 11, // Açıklama yazı boyutunu küçülttük
+                    fontSize: 11,
                     color: Colors.grey[600],
                     height: 1.3,
                   ),
@@ -467,117 +468,135 @@ class _ToolDetailScreenState extends State<ToolDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.tool.title),
-        backgroundColor: widget.darkMode ? Colors.black : Colors.red,
-        foregroundColor: widget.darkMode ? Colors.red : Colors.white,
-        toolbarHeight: 48,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back,
-            color: widget.darkMode ? Colors.red : Colors.white,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Column(
-        children: [
-          if (_isLoading || _progress < 1.0)
-            LinearProgressIndicator(
-              value: _progress,
-              backgroundColor: Colors.grey[300],
-              valueColor: AlwaysStoppedAnimation<Color>(
-                widget.darkMode ? Colors.red : Colors.red,
-              ),
+    return WillPopScope(
+      onWillPop: () async {
+        // Geri tuşuna basınca direkt ana sayfaya dön
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => ToolsWebView(darkMode: widget.darkMode)),
+          (route) => false,
+        );
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.tool.title),
+          backgroundColor: widget.darkMode ? Colors.black : Colors.red,
+          foregroundColor: widget.darkMode ? Colors.red : Colors.white,
+          toolbarHeight: 48,
+          leading: IconButton(
+            icon: Icon(
+              Icons.arrow_back,
+              color: widget.darkMode ? Colors.red : Colors.white,
             ),
-          Expanded(
-            child: InAppWebView(
-              initialUrlRequest: URLRequest(
-                url: WebUri('file:///android_asset/flutter_assets/assets/${widget.tool.htmlFile}'),
+            onPressed: () {
+              // AppBar'daki geri tuşu için de aynı işlem
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => ToolsWebView(darkMode: widget.darkMode)),
+                (route) => false,
+              );
+            },
+          ),
+        ),
+        body: Column(
+          children: [
+            if (_isLoading || _progress < 1.0)
+              LinearProgressIndicator(
+                value: _progress,
+                backgroundColor: Colors.grey[300],
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  widget.darkMode ? Colors.red : Colors.red,
+                ),
               ),
-              initialSettings: InAppWebViewSettings(
-                javaScriptEnabled: true,
-                allowFileAccess: true,
-                allowFileAccessFromFileURLs: true,
-                allowUniversalAccessFromFileURLs: true,
-                transparentBackground: true,
-                useHybridComposition: true,
-              ),
-              onWebViewCreated: (controller) {
-                _webViewController = controller;
-                
-                // JavaScript handler'ını kaydet
-                controller.addJavaScriptHandler(
-                  handlerName: 'saveFile',
-                  callback: (args) {
-                    if (args.length >= 2) {
-                      final fileName = args[0] as String;
-                      final base64Data = args[1] as String;
-                      print('JavaScript handler çağrıldı: $fileName');
-                      _saveFile(fileName, base64Data);
-                    } else {
-                      print('JavaScript handler: Yetersiz argüman - ${args.length}');
-                    }
-                  },
-                );
-              },
-              onLoadStart: (controller, url) {
-                setState(() {
-                  _isLoading = true;
-                  _progress = 0;
-                });
-              },
-              onProgressChanged: (controller, progress) {
-                setState(() {
-                  _progress = progress / 100;
-                });
-              },
-              onLoadStop: (controller, url) {
-                setState(() {
-                  _isLoading = false;
-                  _progress = 1.0;
-                });
-                
-                // JavaScript handler'ını HTML'e enjekte et
-                controller.evaluateJavascript(source: '''
-                  // Global saveFile fonksiyonu
-                  window.saveFileToFlutter = function(fileName, base64Data) {
-                    console.log('saveFileToFlutter çağrıldı:', fileName, 'base64 uzunluk:', base64Data.length);
-                    
-                    if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
-                      try {
-                        window.flutter_inappwebview.callHandler('saveFile', fileName, base64Data);
-                        console.log('Handler başarıyla çağrıldı');
-                        return true;
-                      } catch (e) {
-                        console.error('Handler çağrı hatası:', e);
+            Expanded(
+              child: InAppWebView(
+                initialUrlRequest: URLRequest(
+                  url: WebUri('file:///android_asset/flutter_assets/assets/${widget.tool.htmlFile}'),
+                ),
+                initialSettings: InAppWebViewSettings(
+                  javaScriptEnabled: true,
+                  allowFileAccess: true,
+                  allowFileAccessFromFileURLs: true,
+                  allowUniversalAccessFromFileURLs: true,
+                  transparentBackground: true,
+                  useHybridComposition: true,
+                ),
+                onWebViewCreated: (controller) {
+                  _webViewController = controller;
+                  
+                  // JavaScript handler'ını kaydet
+                  controller.addJavaScriptHandler(
+                    handlerName: 'saveFile',
+                    callback: (args) {
+                      if (args.length >= 2) {
+                        final fileName = args[0] as String;
+                        final base64Data = args[1] as String;
+                        print('JavaScript handler çağrıldı: $fileName');
+                        _saveFile(fileName, base64Data);
+                      } else {
+                        print('JavaScript handler: Yetersiz argüman - ${args.length}');
+                      }
+                    },
+                  );
+                },
+                onLoadStart: (controller, url) {
+                  setState(() {
+                    _isLoading = true;
+                    _progress = 0;
+                  });
+                },
+                onProgressChanged: (controller, progress) {
+                  setState(() {
+                    _progress = progress / 100;
+                  });
+                },
+                onLoadStop: (controller, url) {
+                  setState(() {
+                    _isLoading = false;
+                    _progress = 1.0;
+                  });
+                  
+                  // JavaScript handler'ını HTML'e enjekte et
+                  controller.evaluateJavascript(source: '''
+                    // Global saveFile fonksiyonu
+                    window.saveFileToFlutter = function(fileName, base64Data) {
+                      console.log('saveFileToFlutter çağrıldı:', fileName, 'base64 uzunluk:', base64Data.length);
+                      
+                      if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                        try {
+                          window.flutter_inappwebview.callHandler('saveFile', fileName, base64Data);
+                          console.log('Handler başarıyla çağrıldı');
+                          return true;
+                        } catch (e) {
+                          console.error('Handler çağrı hatası:', e);
+                          return false;
+                        }
+                      } else {
+                        console.error('Flutter handler bulunamadı');
                         return false;
                       }
-                    } else {
-                      console.error('Flutter handler bulunamadı');
-                      return false;
-                    }
-                  };
+                    };
 
-                  // Mevcut butonlara event listener ekle
-                  setTimeout(function() {
-                    console.log('JavaScript enjeksiyonu tamamlandı - ${widget.tool.title}');
-                  }, 1000);
-                ''');
-              },
-              onLoadError: (controller, url, code, message) {
-                setState(() {
-                  _isLoading = false;
-                });
-                print('WebView Load Error: $code - $message');
-              },
-              onConsoleMessage: (controller, consoleMessage) {
-                print('WebView Console [${widget.tool.title}]: ${consoleMessage.message}');
-              },
+                    // Mevcut butonlara event listener ekle
+                    setTimeout(function() {
+                      console.log('JavaScript enjeksiyonu tamamlandı - ${widget.tool.title}');
+                    }, 1000);
+                  ''');
+                },
+                onLoadError: (controller, url, code, message) {
+                  setState(() {
+                    _isLoading = false;
+                  });
+                  print('WebView Load Error: $code - $message');
+                },
+                onConsoleMessage: (controller, consoleMessage) {
+                  print('WebView Console [${widget.tool.title}]: ${consoleMessage.message}');
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
