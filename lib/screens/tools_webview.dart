@@ -52,7 +52,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
     ToolItem(
       id: 'ocr',
       title: 'OCR (Metin Çıkar)',
-      description: 'Metin Al',
+      description: 'PDF veya görselden metin al',
       icon: Icons.search,
       color: Colors.teal,
       htmlFile: 'ocr.html',
@@ -121,7 +121,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
                   crossAxisCount: 2,
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
-                  childAspectRatio: 2.0,
+                  childAspectRatio: 1.2,
                 ),
                 itemCount: _tools.length,
                 itemBuilder: (context, index) {
@@ -596,6 +596,3 @@ class ToolItem {
     required this.htmlFile,
   });
 }
-
-
- 
