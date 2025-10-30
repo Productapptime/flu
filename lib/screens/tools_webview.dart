@@ -121,7 +121,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
                   crossAxisCount: 2,
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
-                  childAspectRatio: 1.2,
+                  childAspectRatio: 1.0, // Daha kareye yakın oran
                 ),
                 itemCount: _tools.length,
                 itemBuilder: (context, index) {
@@ -138,26 +138,26 @@ class _ToolsWebViewState extends State<ToolsWebView> {
 
   Widget _buildToolCard(ToolItem tool) {
     return Card(
-      elevation: 4,
+      elevation: 6, // Gölgeyi biraz artırdık
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16), // Köşeleri daha yuvarlak
       ),
       child: InkWell(
         onTap: () => _openTool(tool),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20), // Padding'i artırdık
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: tool.color,
-              width: 2,
+              width: 2.5, // Kenarlığı kalınlaştırdık
             ),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                tool.color.withOpacity(0.1),
+                tool.color.withOpacity(0.15), // Rengi biraz daha belirgin yaptık
                 tool.color.withOpacity(0.05),
               ],
             ),
@@ -168,28 +168,32 @@ class _ToolsWebViewState extends State<ToolsWebView> {
             children: [
               Icon(
                 tool.icon,
-                size: 32,
+                size: 36, // İkon boyutunu artırdık
                 color: tool.color,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16), // Boşlukları artırdık
               Text(
                 tool.title,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 18, // Yazı boyutunu artırdık
                   fontWeight: FontWeight.bold,
+                  height: 1.2, // Satır yüksekliği
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 4),
-              Text(
-                tool.description,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
+              const SizedBox(height: 8), // Boşlukları artırdık
+              Expanded( // Açıklama için esnek alan
+                child: Text(
+                  tool.description,
+                  style: TextStyle(
+                    fontSize: 14, // Açıklama yazı boyutunu artırdık
+                    color: Colors.grey[600],
+                    height: 1.3, // Satır yüksekliği
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -199,6 +203,7 @@ class _ToolsWebViewState extends State<ToolsWebView> {
   }
 }
 
+// Aşağıdaki ToolDetailScreen kodu aynı kalacak...
 class ToolDetailScreen extends StatefulWidget {
   final ToolItem tool;
   final bool darkMode;
