@@ -7,8 +7,8 @@ class PdfFileItem extends FileSystemItem {
   String? folderId;
   
   PdfFileItem({
-    required String id, 
-    required String name, 
+    required String id,
+    required String name,
     required this.file,
     this.folderId,
     DateTime? lastOpened,
@@ -16,14 +16,7 @@ class PdfFileItem extends FileSystemItem {
   }) : super(
     id: id, 
     name: name, 
-    lastOpened: lastOpened, 
+    lastOpened: lastOpened,
     isFavorite: isFavorite,
-    parentFolderId: folderId,
   );
-
-  // ✅ File boyutu için yardımcı metod
-  int get fileSize => file.lengthSync();
-  
-  // ✅ Dosya uzantısı
-  String get fileExtension => name.split('.').last.toLowerCase();
 }
