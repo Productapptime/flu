@@ -16,29 +16,25 @@ class DataPersistence {
     final prefs = await SharedPreferences.getInstance();
     final List<Map<String, dynamic>> itemsJson = [];
     
-    // ✅ SADECE ROOT SEVİYESİNDEKİ ÖĞELERİ KAYDET
-    // Klasör içindekileri AYRI kaydetme - tekilleştirme!
+    // ✅ SADECE TEK KAYIT - her öğe sadece bir kez kaydedilsin
     for (final item in items) {
       if (item is PdfFileItem) {
-        // ✅ PDF dosyası - direkt kaydet
         itemsJson.add({
           'type': 'file',
           'id': item.id,
           'name': item.name,
           'path': item.file.path,
-          'folderId': item.folderId, // ✅ Bu önemli - hangi klasörde olduğu
+          'folderId': item.folderId,
           'lastOpened': item.lastOpened?.millisecondsSinceEpoch,
           'isFavorite': item.isFavorite,
         });
       } else if (item is PdfFolderItem) {
-        // ✅ Klasör - sadece klasör bilgisini kaydet, içindekileri DEĞİL
         itemsJson.add({
           'type': 'folder',
           'id': item.id,
           'name': item.name,
           'color': item.color.value,
           'parentFolderId': item.parentFolderId,
-          // ❌ 'items' alanını KALDIR - klasör içindekileri ayrı kaydetme!
         });
       }
     }
@@ -54,29 +50,14 @@ class DataPersistence {
     
     try {
       final List<dynamic> itemsJson = json.decode(itemsJsonString);
-      final List<FileSystemItem> allItems = [];
-      final Map<String, PdfFolderItem> folderMap = {};
+      final List<FileSystemItem> items = [];
       
-      // 1. Önce tüm klasörleri oluştur ve map'e kaydet
-      for (final itemJson in itemsJson) {
-        if (itemJson['type'] == 'folder') {
-          final folder = PdfFolderItem(
-            id: itemJson['id'],
-            name: itemJson['name'],
-            color: Color(itemJson['color']),
-            parentFolderId: itemJson['parentFolderId'],
-          );
-          folderMap[folder.id] = folder;
-          allItems.add(folder);
-        }
-      }
-      
-      // 2. Sonra tüm dosyaları oluştur ve ilgili klasörlere yerleştir
+      // ✅ TEK SEFERDE YÜKLE - klasör içi ilişkileri kurma
       for (final itemJson in itemsJson) {
         if (itemJson['type'] == 'file') {
           final file = File(itemJson['path']);
           if (await file.exists()) {
-            final pdfFile = PdfFileItem(
+            items.add(PdfFileItem(
               id: itemJson['id'],
               name: itemJson['name'],
               file: file,
@@ -85,21 +66,19 @@ class DataPersistence {
                   ? DateTime.fromMillisecondsSinceEpoch(itemJson['lastOpened'])
                   : null,
               isFavorite: itemJson['isFavorite'] ?? false,
-            );
-            
-            // ✅ Dosyayı ilgili klasöre ekle VEYA root'a ekle
-            final folderId = itemJson['folderId'];
-            if (folderId != null && folderMap.containsKey(folderId)) {
-              folderMap[folderId]!.items.add(pdfFile);
-            } else {
-              // Root'taki dosya
-              allItems.add(pdfFile);
-            }
+            ));
           }
+        } else if (itemJson['type'] == 'folder') {
+          items.add(PdfFolderItem(
+            id: itemJson['id'],
+            name: itemJson['name'],
+            color: Color(itemJson['color']),
+            parentFolderId: itemJson['parentFolderId'],
+          ));
         }
       }
       
-      return allItems;
+      return items;
     } catch (e) {
       debugPrint('Error loading items: $e');
       return [];
