@@ -163,14 +163,98 @@ class _PDFHomePageState extends State<PDFHomePage> {
     });
   }
 
-  void _sortByName() {
+  void _showSortSheet() {
+    showModalBottomSheet(context: context, builder: (ctx) {
+      return SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              'Sıralama Seçenekleri',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+          // İsim Sıralama
+          ListTile(
+            leading: const Icon(Icons.sort_by_alpha),
+            title: const Text('İsme göre (A-Z)'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _sortByNameAZ(); 
+            }
+          ),
+          ListTile(
+            leading: const Icon(Icons.sort_by_alpha),
+            title: const Text('İsme göre (Z-A)'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _sortByNameZA(); 
+            }
+          ),
+          // Boyut Sıralama
+          ListTile(
+            leading: const Icon(Icons.storage),
+            title: const Text('Boyuta göre (Büyükten Küçüğe)'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _sortBySizeDescending(); 
+            }
+          ),
+          ListTile(
+            leading: const Icon(Icons.storage),
+            title: const Text('Boyuta göre (Küçükten Büyüğe)'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _sortBySizeAscending(); 
+            }
+          ),
+          // Tarih Sıralama
+          ListTile(
+            leading: const Icon(Icons.date_range),
+            title: const Text('Tarihe göre (Yeniden Eskiye)'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _sortByDateDescending(); 
+            }
+          ),
+          ListTile(
+            leading: const Icon(Icons.date_range),
+            title: const Text('Tarihe göre (Eskiden Yeniye)'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _sortByDateAscending(); 
+            }
+          ),
+          // Tür Sıralama (Klasörler üstte)
+          ListTile(
+            leading: const Icon(Icons.category),
+            title: const Text('Türe göre (Klasörler üstte)'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _sortByType(); 
+            }
+          ),
+        ]),
+      );
+    });
+  }
+
+  // ✅ Yeni Sıralama Metodları
+  void _sortByNameAZ() {
     setState(() {
       _allItems.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     });
     _saveData();
   }
 
-  void _sortBySize() {
+  void _sortByNameZA() {
+    setState(() {
+      _allItems.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
+    });
+    _saveData();
+  }
+
+  void _sortBySizeDescending() {
     setState(() {
       _allItems.sort((a, b) {
         if (a is PdfFileItem && b is PdfFileItem) {
@@ -189,38 +273,76 @@ class _PDFHomePageState extends State<PDFHomePage> {
     _saveData();
   }
 
-  void _showSortSheet() {
-    showModalBottomSheet(context: context, builder: (ctx) {
-      return SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.sort_by_alpha),
-            title: const Text('A\'dan Z\'ye sırala'), 
-            onTap: () { 
-              Navigator.pop(ctx); 
-              _sortByName(); 
-            }
-          ),
-          ListTile(
-            leading: const Icon(Icons.sort_by_alpha),
-            title: const Text('Z\'den A\'ya sırala'), 
-            onTap: () { 
-              Navigator.pop(ctx); 
-              setState(() => _allItems.sort((a,b)=>b.name.toLowerCase().compareTo(a.name.toLowerCase()))); 
-              _saveData();
-            }
-          ),
-          ListTile(
-            leading: const Icon(Icons.storage),
-            title: const Text('Boyuta göre sırala'), 
-            onTap: () { 
-              Navigator.pop(ctx); 
-              _sortBySize(); 
-            }
-          ),
-        ]),
-      );
+  void _sortBySizeAscending() {
+    setState(() {
+      _allItems.sort((a, b) {
+        if (a is PdfFileItem && b is PdfFileItem) {
+          final aSize = a.file.lengthSync();
+          final bSize = b.file.lengthSync();
+          return aSize.compareTo(bSize);
+        } else if (a is PdfFileItem) {
+          return -1;
+        } else if (b is PdfFileItem) {
+          return 1;
+        } else {
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        }
+      });
     });
+    _saveData();
+  }
+
+  void _sortByDateDescending() {
+    setState(() {
+      _allItems.sort((a, b) {
+        if (a is PdfFileItem && b is PdfFileItem) {
+          final aDate = a.lastOpened ?? DateTime(0);
+          final bDate = b.lastOpened ?? DateTime(0);
+          return bDate.compareTo(aDate);
+        } else if (a is PdfFileItem) {
+          return -1;
+        } else if (b is PdfFileItem) {
+          return 1;
+        } else {
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        }
+      });
+    });
+    _saveData();
+  }
+
+  void _sortByDateAscending() {
+    setState(() {
+      _allItems.sort((a, b) {
+        if (a is PdfFileItem && b is PdfFileItem) {
+          final aDate = a.lastOpened ?? DateTime(0);
+          final bDate = b.lastOpened ?? DateTime(0);
+          return aDate.compareTo(bDate);
+        } else if (a is PdfFileItem) {
+          return -1;
+        } else if (b is PdfFileItem) {
+          return 1;
+        } else {
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        }
+      });
+    });
+    _saveData();
+  }
+
+  void _sortByType() {
+    setState(() {
+      // Klasörler üstte, dosyalar altta + her grup kendi içinde A-Z sıralı
+      final folders = _allItems.whereType<PdfFolderItem>().toList();
+      final files = _allItems.whereType<PdfFileItem>().toList();
+      
+      folders.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      files.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      
+      _allItems.clear();
+      _allItems.addAll([...folders, ...files]);
+    });
+    _saveData();
   }
 
   void _openFile(PdfFileItem item) async {
@@ -427,13 +549,15 @@ class _PDFHomePageState extends State<PDFHomePage> {
   void _performMove(FileSystemItem item, PdfFolderItem? targetFolder) {
     setState(() {
       // Mevcut konumdan kaldır
-      if (_currentFolder != null) {
-        _currentFolder!.items.remove(item);
+      if (item.parentFolderId != null) {
+        final previousFolder = _allItems.whereType<PdfFolderItem>()
+            .firstWhere((f) => f.id == item.parentFolderId);
+        previousFolder.items.remove(item);
       } else {
         _allItems.remove(item);
       }
       
-      // Yeni parent ID'yi ayarla
+      // ✅ SADECE parentFolderId güncelle, yeni nesne oluşturma!
       item.parentFolderId = targetFolder?.id;
       
       if (targetFolder != null) {
@@ -476,6 +600,14 @@ class _PDFHomePageState extends State<PDFHomePage> {
             onTap: () { 
               Navigator.pop(ctx); 
               _renameItem(item); 
+            }
+          ),
+          ListTile(
+            leading: const Icon(Icons.favorite), 
+            title: Text(item.isFavorite ? 'Favorilerden kaldır' : 'Favorilere ekle'), 
+            onTap: () { 
+              Navigator.pop(ctx); 
+              _toggleFavorite(item); 
             }
           ),
           ListTile(
@@ -703,14 +835,10 @@ class _PDFHomePageState extends State<PDFHomePage> {
         return recentFiles.take(20).toList();
         
       case 2: // Favorites
-        // ✅ Favorilerde de klasörler üstte, favori dosyalar altta
-        final favoriteFolders = _allItems.whereType<PdfFolderItem>().toList();
+        // ✅ SADECE PDF DOSYALARI favorilere eklenebilir, klasörler EKLENEMEZ
         final favoriteFiles = _allItems.whereType<PdfFileItem>().where((file) => file.isFavorite).toList();
-        
-        favoriteFolders.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
         favoriteFiles.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-        
-        return [...favoriteFolders, ...favoriteFiles];
+        return favoriteFiles;
         
       default:
         return _allItems;
@@ -1023,7 +1151,9 @@ class _PDFHomePageState extends State<PDFHomePage> {
             Text(
               _bottomIndex == 1 
                 ? 'Henüz açılmış dosya yok' 
-                : 'Henüz dosya yok',
+                : _bottomIndex == 2
+                  ? 'Henüz favori dosya yok'
+                  : 'Henüz dosya yok',
               style: TextStyle(
                 fontSize: 18, 
                 color: _darkModeManual ? Colors.red : Colors.grey
@@ -1033,7 +1163,9 @@ class _PDFHomePageState extends State<PDFHomePage> {
             Text(
               _bottomIndex == 1
                 ? 'PDF dosyalarını viewer ile açarak burada görebilirsiniz'
-                : 'Yeni PDF eklemek için + simgesine tıklayın',
+                : _bottomIndex == 2
+                  ? 'PDF dosyalarını favorilere ekleyerek burada görebilirsiniz'
+                  : 'Yeni PDF eklemek için + simgesine tıklayın',
               style: TextStyle(
                 color: _darkModeManual ? Colors.red : Colors.grey
               ),
