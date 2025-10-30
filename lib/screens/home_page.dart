@@ -222,6 +222,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
   }
 
   void _openFile(PdfFileItem item) async {
+    // ✅ SADECE ViewerScreen'de viewer.html ile açıldığında lastOpened güncellenecek
     final returned = await Navigator.push<File?>(
       context,
       MaterialPageRoute(builder: (_) => ViewerScreen(
@@ -229,7 +230,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
         fileName: item.name,
         dark: _darkModeManual,
         onFileOpened: () {
-          // 1. Mevcut dosya açıldığında lastOpened güncellenir ve Recent'a düşer.
+          // ✅ SADECE BURADA: Viewer.html ile açıldığında lastOpened güncelle
           setState(() {
             item.lastOpened = DateTime.now();
           });
@@ -242,20 +243,12 @@ class _PDFHomePageState extends State<PDFHomePage> {
       final exists = _allItems.any((it) => it is PdfFileItem && (it as PdfFileItem).file.path == returned.path);
       if (!exists) {
         setState(() {
-          // ViewerScreen'den yeni bir dosya döndüyse (örn. kaydedilen düzenleme), 
-          // bu yeni dosyayı lastOpened'ı ayarlanmış olarak ekle.
-          final newFile = PdfFileItem(
+          _allItems.add(PdfFileItem(
             id: FileService.generateFileId(), 
             name: p.basename(returned.path), 
             file: returned,
             folderId: _currentFolder?.id,
-            lastOpened: DateTime.now(), // <-- Güncelleme: Yeni dosya için lastOpened ayarlandı.
-          );
-          _allItems.add(newFile);
-          
-          if (_currentFolder != null) {
-            _currentFolder!.items.add(newFile);
-          }
+          ));
         });
         _saveData();
       }
@@ -653,7 +646,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
     _notify('${value ? 'Karanlık' : 'Açık'} mod ${value ? 'açıldı' : 'kapatıldı'}');
   }
 
-  // Tools sayfasına geçiş metodu
+  // ✅ Tools sayfasını açma metodu
   void _openToolsPage() {
     Navigator.pushAndRemoveUntil(
       context,
@@ -672,9 +665,10 @@ class _PDFHomePageState extends State<PDFHomePage> {
         return _allItems;
       case 1: // Recent
         final files = _allItems.whereType<PdfFileItem>().toList();
-        // Sadece ViewerScreen ile açılan dosyalar (lastOpened != null olanlar) listelenir.
-        files.sort((a, b) => (b.lastOpened ?? DateTime(0)).compareTo(a.lastOpened ?? DateTime(0)));
-        return files.take(20).toList();
+        // ✅ KRİTİK DÜZELTME: Sadece lastOpened değeri null olmayan dosyaları göster
+        final recentFiles = files.where((file) => file.lastOpened != null).toList();
+        recentFiles.sort((a, b) => (b.lastOpened ?? DateTime(0)).compareTo(a.lastOpened ?? DateTime(0)));
+        return recentFiles.take(20).toList();
       case 2: // Favorites
         return _allItems.where((it) => it is PdfFileItem && (it as PdfFileItem).isFavorite).toList();
       default:
@@ -842,7 +836,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
             _selectionMode = false; 
             _selectedItems.clear(); 
             
-            // Tools sayfasına tıklanırsa aç
+            // ✅ Tools sayfasına tıklanırsa aç
             if (i == 3) {
               _openToolsPage();
             }
@@ -942,7 +936,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
   }
 
   Widget _buildBody() {
-    // Tools sayfasına tıklandığında boş bir sayfa göster (çünkü ToolsWebView ayrı açılacak)
+    // ✅ Tools sayfasına tıklandığında boş bir sayfa göster (çünkü ToolsWebView ayrı açılacak)
     if (_bottomIndex == 3) {
       return Center(
         child: Column(
@@ -988,7 +982,9 @@ class _PDFHomePageState extends State<PDFHomePage> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Henüz dosya yok',
+              _bottomIndex == 1 
+                ? 'Henüz açılmış dosya yok' 
+                : 'Henüz dosya yok',
               style: TextStyle(
                 fontSize: 18, 
                 color: _darkModeManual ? Colors.red : Colors.grey
@@ -996,7 +992,9 @@ class _PDFHomePageState extends State<PDFHomePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Yeni PDF eklemek için + simgesine tıklayın',
+              _bottomIndex == 1
+                ? 'PDF dosyalarını viewer ile açarak burada görebilirsiniz'
+                : 'Yeni PDF eklemek için + simgesine tıklayın',
               style: TextStyle(
                 color: _darkModeManual ? Colors.red : Colors.grey
               ),
