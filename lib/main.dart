@@ -72,7 +72,7 @@ class PdfFolderItem extends FileSystemItem {
   PdfFolderItem({
     required String id,
     required String name,
-    this.color = Colors.grey,
+    this.color = Colors.blue, // ✅ Varsayılan renk mavi yapıldı
     String? parentFolderId,
   }) : super(
     id: id, 
@@ -639,6 +639,19 @@ class _PDFHomePageState extends State<PDFHomePage> {
     });
   }
 
+  void _selectAllItems() {
+    setState(() {
+      _selectedItems.clear();
+      _selectedItems.addAll(_getDisplayItems());
+    });
+  }
+
+  void _deselectAllItems() {
+    setState(() {
+      _selectedItems.clear();
+    });
+  }
+
   void _showSortSheet() {
     showModalBottomSheet(context: context, builder: (ctx) {
       return SafeArea(
@@ -698,14 +711,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
               _sortByDateAscending(); 
             }
           ),
-          ListTile(
-            leading: const Icon(Icons.category),
-            title: const Text('Türe göre (Klasörler üstte)'), 
-            onTap: () { 
-              Navigator.pop(ctx); 
-              _sortByType(); 
-            }
-          ),
+          // ✅ Türe göre sıralama KALDIRILDI
         ]),
       );
     });
@@ -801,20 +807,6 @@ class _PDFHomePageState extends State<PDFHomePage> {
     _saveData();
   }
 
-  void _sortByType() {
-    setState(() {
-      final folders = _allItems.whereType<PdfFolderItem>().toList();
-      final files = _allItems.whereType<PdfFileItem>().toList();
-      
-      folders.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      files.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      
-      _allItems.clear();
-      _allItems.addAll([...folders, ...files]);
-    });
-    _saveData();
-  }
-
   void _openFile(PdfFileItem item) async {
     final returned = await Navigator.push<File?>(
       context,
@@ -823,6 +815,7 @@ class _PDFHomePageState extends State<PDFHomePage> {
         fileName: item.name,
         dark: _darkModeManual,
         onFileOpened: () {
+          // ✅ PDF viewer.html ile açıldığında lastOpened güncellenir
           setState(() {
             item.lastOpened = DateTime.now();
           });
@@ -1368,78 +1361,86 @@ class _PDFHomePageState extends State<PDFHomePage> {
 
     return Scaffold(
       drawer: _currentFolder == null && !_isSearching ? Drawer(
-        child: SafeArea(
-          child: Column(children: [
-            DrawerHeader(
-              child: Text('PDF Okuyucu & Yönetici', 
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  color: _darkModeManual ? Colors.red : Colors.white
-                )
+        child: Container(
+          color: _darkModeManual ? Colors.black : Colors.white, // ✅ Drawer arkaplan rengi
+          child: SafeArea(
+            child: Column(children: [
+              // ✅ HEADER - Beyaz alan kaldırıldı, header tamamen dolu
+              Container(
+                width: double.infinity,
+                height: 120, // Header yüksekliği
+                decoration: BoxDecoration(
+                  color: _darkModeManual ? Colors.black : Colors.red,
+                ),
+                child: Center(
+                  child: Text('PDF Okuyucu & Yönetici', 
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: _darkModeManual ? Colors.red : Colors.white
+                    )
+                  ),
+                ),
               ),
-              decoration: BoxDecoration(
-                color: _darkModeManual ? Colors.black : Colors.red
-              )
-            ),
-            ListTile(
-              leading: Icon(Icons.cloud_upload, 
-                color: _darkModeManual ? Colors.red : null
-              ), 
-              title: const Text('PDF İçe Aktar'), 
-              onTap: () { 
-                Navigator.pop(context); 
-                _importPdf(); 
-              }
-            ),
-            ListTile(
-              leading: Icon(Icons.create_new_folder,
-                color: _darkModeManual ? Colors.red : null
-              ), 
-              title: const Text('Klasör Oluştur'), 
-              onTap: () { 
-                Navigator.pop(context); 
-                _createFolder(); 
-              }
-            ),
-            ListTile(
-              leading: Icon(Icons.info,
-                color: _darkModeManual ? Colors.red : null
-              ), 
-              title: const Text('Hakkında'), 
-              onTap: () { 
-                Navigator.pop(context); 
-                _showAboutDialog(); 
-              }
-            ),
-            SwitchListTile(
-              secondary: Icon(
-                _darkModeManual ? Icons.light_mode : Icons.dark_mode,
-                color: _darkModeManual ? Colors.red : null,
+              ListTile(
+                leading: Icon(Icons.cloud_upload, 
+                  color: _darkModeManual ? Colors.red : null
+                ), 
+                title: const Text('PDF İçe Aktar'), 
+                onTap: () { 
+                  Navigator.pop(context); 
+                  _importPdf(); 
+                }
               ),
-              title: Text(_darkModeManual ? 'Açık Mod' : 'Karanlık Mod'),
-              value: _darkModeManual,
-              onChanged: _toggleDarkMode,
-            ),
-            ListTile(
-              leading: Icon(Icons.policy,
-                color: _darkModeManual ? Colors.red : null
-              ), 
-              title: const Text('Gizlilik'), 
-              onTap: () { 
-                Navigator.pop(context); 
-                _notify('Gizlilik Politikası'); 
-              }
-            ),
-            ListTile(
-              leading: Icon(Icons.language,
-                color: _darkModeManual ? Colors.red : null
-              ), 
-              title: const Text('Dil'), 
-              onTap: () { 
-                Navigator.pop(context); 
-                _notify('Dil Seçenekleri'); 
-              }
-            ),
-          ]),
+              ListTile(
+                leading: Icon(Icons.create_new_folder,
+                  color: _darkModeManual ? Colors.red : null
+                ), 
+                title: const Text('Klasör Oluştur'), 
+                onTap: () { 
+                  Navigator.pop(context); 
+                  _createFolder(); 
+                }
+              ),
+              ListTile(
+                leading: Icon(Icons.info,
+                  color: _darkModeManual ? Colors.red : null
+                ), 
+                title: const Text('Hakkında'), 
+                onTap: () { 
+                  Navigator.pop(context); 
+                  _showAboutDialog(); 
+                }
+              ),
+              SwitchListTile(
+                secondary: Icon(
+                  _darkModeManual ? Icons.light_mode : Icons.dark_mode,
+                  color: _darkModeManual ? Colors.red : null,
+                ),
+                title: Text(_darkModeManual ? 'Açık Mod' : 'Karanlık Mod'),
+                value: _darkModeManual,
+                onChanged: _toggleDarkMode,
+              ),
+              ListTile(
+                leading: Icon(Icons.policy,
+                  color: _darkModeManual ? Colors.red : null
+                ), 
+                title: const Text('Gizlilik'), 
+                onTap: () { 
+                  Navigator.pop(context); 
+                  _notify('Gizlilik Politikası'); 
+                }
+              ),
+              ListTile(
+                leading: Icon(Icons.language,
+                  color: _darkModeManual ? Colors.red : null
+                ), 
+                title: const Text('Dil'), 
+                onTap: () { 
+                  Navigator.pop(context); 
+                  _notify('Dil Seçenekleri'); 
+                }
+              ),
+            ]),
+          ),
         ),
       ) : null,
       appBar: CustomAppBar(
@@ -1506,6 +1507,19 @@ class _PDFHomePageState extends State<PDFHomePage> {
     
     if (_selectionMode && _selectedItems.isNotEmpty) {
       return [
+        // ✅ SEÇİM MODUNDA: Tümünü Seç ve Tüm Seçimi Kaldır ikonları
+        IconButton(
+          icon: Icon(Icons.select_all,
+            color: _darkModeManual ? Colors.red : Colors.white
+          ),
+          onPressed: _selectAllItems,
+        ),
+        IconButton(
+          icon: Icon(Icons.deselect,
+            color: _darkModeManual ? Colors.red : Colors.white
+          ),
+          onPressed: _deselectAllItems,
+        ),
         IconButton(
           icon: Icon(Icons.print,
             color: _darkModeManual ? Colors.red : Colors.white
@@ -1529,6 +1543,13 @@ class _PDFHomePageState extends State<PDFHomePage> {
     
     return [
       if (!_isSearching) ...[
+        // ✅ KLASÖR OLUŞTUR İKONU - AppBar'a eklendi
+        IconButton(
+          icon: Icon(Icons.create_new_folder,
+            color: _darkModeManual ? Colors.red : Colors.white
+          ), 
+          onPressed: _createFolder
+        ),
         IconButton(
           icon: Icon(Icons.search,
             color: _darkModeManual ? Colors.red : Colors.white
@@ -1544,14 +1565,11 @@ class _PDFHomePageState extends State<PDFHomePage> {
           ), 
           onPressed: _showSortSheet
         ),
+        // ✅ GERÇEK SEÇİM İKONU - Checkbox yerine select_all ikonu
         IconButton(
-          icon: _selectionMode 
-              ? Icon(Icons.check_box,
-                  color: _darkModeManual ? Colors.red : Colors.white
-                )
-              : Icon(Icons.check_box_outline_blank,
-                  color: _darkModeManual ? Colors.red : Colors.white
-                ), 
+          icon: Icon(Icons.select_all,
+            color: _darkModeManual ? Colors.red : Colors.white
+          ), 
           onPressed: _toggleSelectionMode
         ),
       ],
