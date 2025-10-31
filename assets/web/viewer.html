@@ -774,50 +774,29 @@ See https://github.com/adobe-type-tools/cmap-resources
     <div id="printContainer"></div>
 
 
-<!-- Flutter'a PDF kaydedildi bildirimi gönderen script -->
-<!-- 📄 Flutter kaydetme entegrasyonu -->
+
+<!-- 📄 Flutter'dan gelen PDF dosyasını yükle -->
 <script>
-  // 🔄 Flutter’a haber veren fonksiyon
-  function notifyFlutterSave(filename, base64Data) {
-    if (window.flutter_inappwebview) {
-      window.flutter_inappwebview.callHandler("onPdfSaved", filename, base64Data);
-    } else {
-      console.log("Flutter handler not found");
-    }
-  }
+  document.addEventListener("DOMContentLoaded", () => {
+    const params = new URLSearchParams(window.location.search);
+    const fileParam = params.get("file");
 
-  document.addEventListener("webviewerloaded", () => {
-    const tryAttach = () => {
-      const saveBtn = document.querySelector("#download") || document.querySelector("#secondaryDownload");
-      if (saveBtn) {
-        saveBtn.addEventListener("click", async () => {
-          try {
-            const app = window.PDFViewerApplication;
-            const filename = app?.baseUrl?.split("/").pop() || "report.pdf";
-
-            // 🧩 PDF.js’ten güncel dosya blob’unu al
-            const data = await app.pdfDocument.saveDocument();
-            const blob = new Blob([data], { type: "application/pdf" });
-
-            // 📦 Blob’u Base64’e çevir
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              const base64Data = reader.result.split(",")[1];
-              notifyFlutterSave(filename, base64Data);
-            };
-            reader.readAsDataURL(blob);
-          } catch (e) {
-            console.error("Save error:", e);
-          }
-        });
+    if (fileParam) {
+      // PDF.js ana uygulamasına parametreyi aktar
+      if (window.PDFViewerApplication) {
+        PDFViewerApplication.open(fileParam);
       } else {
-        setTimeout(tryAttach, 1000);
+        document.addEventListener("webviewerloaded", () => {
+          PDFViewerApplication.open(fileParam);
+        });
       }
-    };
-    tryAttach();
+    } else {
+      console.warn("No file parameter found. Example: viewer.html?file=file:///storage/emulated/0/Download/test.pdf");
+    }
   });
 </script>
-      
+</body>
+</html>
       
   </body>
 </html>
