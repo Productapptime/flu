@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,14 +13,12 @@ void main() async {
   runApp(const PdfManagerPlusApp());
 }
 
-/// 🔐 Android 11+ dosya izinlerini kontrol eder
+/// 📂 Android 11+ için depolama izinleri
 Future<void> _requestPermissions() async {
-  if (await Permission.manageExternalStorage.isDenied) {
-    await Permission.manageExternalStorage.request();
-  }
-  if (await Permission.storage.isDenied) {
-    await Permission.storage.request();
-  }
+  await [
+    Permission.manageExternalStorage,
+    Permission.storage,
+  ].request();
 }
 
 class PdfManagerPlusApp extends StatelessWidget {
@@ -111,6 +109,7 @@ class _PdfHomePageState extends State<PdfHomePage> {
       setState(() => recents.insert(0, filePath));
       await _saveLists();
     }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -195,7 +194,7 @@ class _PdfHomePageState extends State<PdfHomePage> {
             ListTile(
               leading: Icon(Icons.info_outline),
               title: Text("About"),
-              subtitle: Text("PDF.js Embedded Viewer + File Picker"),
+              subtitle: Text("Native InAppWebView PDF.js Viewer"),
             ),
           ],
         ),
@@ -214,6 +213,7 @@ class _PdfHomePageState extends State<PdfHomePage> {
   }
 }
 
+/// 🧭 PDF Viewer Sayfası
 class PdfViewerPage extends StatefulWidget {
   final String pdfPath;
   const PdfViewerPage({super.key, required this.pdfPath});
@@ -225,52 +225,48 @@ class PdfViewerPage extends StatefulWidget {
 class _PdfViewerPageState extends State<PdfViewerPage> {
   late InAppWebViewController _controller;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadViewer();
-  }
+  /// assets/web/viewer.html dosyasını cihazın temp klasörüne kopyalayıp oradan açıyoruz.
+  Future<String> _prepareLocalViewer() async {
+    final tempDir = await getTemporaryDirectory();
+    final viewerFile = File('${tempDir.path}/viewer.html');
 
-  Future<void> _loadViewer() async {
-    // 📄 viewer.html içeriğini oku
-    String htmlTemplate = await rootBundle.loadString('assets/web/viewer.html');
-    String pdfUri = Uri.file(widget.pdfPath).toString();
-
-    // Flutter içinden PDF yolunu göm
-    String htmlWithPdf = htmlTemplate.replaceFirst('</body>', """
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const fileParam = "$pdfUri";
-    if (fileParam) {
-      if (window.PDFViewerApplication) {
-        PDFViewerApplication.open(fileParam);
-      } else {
-        document.addEventListener("webviewerloaded", () => {
-          PDFViewerApplication.open(fileParam);
-        });
-      }
+    // Eğer daha önce kopyalanmadıysa asset'ten yükle
+    if (!await viewerFile.exists()) {
+      final data = await rootBundle.loadString('assets/web/viewer.html');
+      await viewerFile.writeAsString(data);
     }
-  });
-</script>
-</body>
-""");
 
-    // WebView'de yükle
-    await _controller.loadData(data: htmlWithPdf, mimeType: 'text/html', encoding: 'utf-8');
+    return viewerFile.path;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(p.basename(widget.pdfPath))),
-      body: InAppWebView(
-        onWebViewCreated: (controller) => _controller = controller,
-        initialSettings: InAppWebViewSettings(
-          allowFileAccessFromFileURLs: true,
-          allowUniversalAccessFromFileURLs: true,
-          javaScriptEnabled: true,
-        ),
-      ),
+    final pdfUri = Uri.file(widget.pdfPath).toString();
+
+    return FutureBuilder<String>(
+      future: _prepareLocalViewer(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        final viewerPath = snapshot.data!;
+        final viewerUri =
+            'file://$viewerPath?file=$pdfUri'; // 🔗 viewer.html?file=file:///...
+
+        return Scaffold(
+          appBar: AppBar(title: Text(p.basename(widget.pdfPath))),
+          body: InAppWebView(
+            initialUrlRequest: URLRequest(url: Uri.parse(viewerUri)),
+            initialSettings: InAppWebViewSettings(
+              allowFileAccessFromFileURLs: true,
+              allowUniversalAccessFromFileURLs: true,
+              javaScriptEnabled: true,
+            ),
+            onWebViewCreated: (controller) => _controller = controller,
+          ),
+        );
+      },
     );
   }
 }
