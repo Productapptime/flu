@@ -6,6 +6,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter/services.dart' show rootBundle; // ✅ eklendi
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -251,13 +252,13 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
         }
 
         final viewerPath = snapshot.data!;
-        final viewerUri =
-            'file://$viewerPath?file=$pdfUri'; // 🔗 viewer.html?file=file:///...
+        final viewerUri = WebUri(
+            'file://$viewerPath?file=$pdfUri'); // ✅ WebUri tipine dönüştürüldü
 
         return Scaffold(
           appBar: AppBar(title: Text(p.basename(widget.pdfPath))),
           body: InAppWebView(
-            initialUrlRequest: URLRequest(url: Uri.parse(viewerUri)),
+            initialUrlRequest: URLRequest(url: viewerUri), // ✅ düzeltildi
             initialSettings: InAppWebViewSettings(
               allowFileAccessFromFileURLs: true,
               allowUniversalAccessFromFileURLs: true,
