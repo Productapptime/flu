@@ -77,10 +77,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _importFile() async {
-    final res = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-    );
+    final res = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
     if (res != null && res.files.single.path != null) {
       final path = res.files.single.path!;
       if (!_allFiles.contains(path)) {
@@ -95,9 +92,7 @@ class _HomePageState extends State<HomePage> {
     final file = File(path);
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ViewerScreen(file: file, fileName: p.basename(path), dark: widget.dark),
-      ),
+      MaterialPageRoute(builder: (_) => ViewerScreen(file: file, fileName: p.basename(path), dark: widget.dark)),
     );
     if (!_recent.contains(path)) {
       _recent.insert(0, path);
@@ -182,6 +177,50 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _moveFile(String path) async {
+    final folders = _allFiles.where((f) => Directory(f).existsSync()).toList();
+    if (folders.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No folders to move to.')));
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => ListView(
+        children: folders.map((folderPath) {
+          return ListTile(
+            leading: const Icon(Icons.folder),
+            title: Text(p.basename(folderPath)),
+            onTap: () async {
+              try {
+                final source = File(path);
+                if (!source.existsSync()) return;
+                final dest = File('${folderPath}/${p.basename(path)}');
+                await source.rename(dest.path);
+
+                // Listeleri güncelle
+                _allFiles.remove(path);
+                _allFiles.add(dest.path);
+                _favorites.remove(path);
+                _recent.remove(path);
+
+                await _saveLists();
+                if (mounted) {
+                  Navigator.pop(context);
+                  setState(() {});
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Moved to ${p.basename(folderPath)}')));
+                }
+              } catch (e) {
+                debugPrint('Move error: $e');
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Move failed.')));
+              }
+            },
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   Future<void> _renameFile(String path) async {
     final controller = TextEditingController(text: p.basenameWithoutExtension(path));
     showDialog(
@@ -206,35 +245,6 @@ class _HomePageState extends State<HomePage> {
             child: const Text('Rename'),
           ),
         ],
-      ),
-    );
-  }
-
-  Future<void> _moveFile(String path) async {
-    final folders = _allFiles.where((f) => Directory(f).existsSync()).toList();
-    if (folders.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No folders to move to.')));
-      return;
-    }
-
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => ListView(
-        children: folders.map((f) {
-          return ListTile(
-            leading: const Icon(Icons.folder),
-            title: Text(p.basename(f)),
-            onTap: () async {
-              final target = Directory(f);
-              final newPath = '${target.path}/${p.basename(path)}';
-              await File(path).rename(newPath);
-              _allFiles[_allFiles.indexOf(path)] = newPath;
-              await _saveLists();
-              if (mounted) Navigator.pop(context);
-              setState(() {});
-            },
-          );
-        }).toList(),
       ),
     );
   }
@@ -313,7 +323,7 @@ class _HomePageState extends State<HomePage> {
       drawer: Drawer(
         child: ListView(padding: EdgeInsets.zero, children: [
           const DrawerHeader(decoration: BoxDecoration(color: Colors.red), child: Text('PDF Manager Menu', style: TextStyle(color: Colors.white, fontSize: 18))),
-          ListTile(leading: const Icon(Icons.info_outline), title: const Text('About'), onTap: () => showAboutDialog(context: context, applicationName: 'PDF Manager Plus', applicationVersion: '5.0', children: const [Text('Developed by Arvin')])),
+          ListTile(leading: const Icon(Icons.info_outline), title: const Text('About'), onTap: () => showAboutDialog(context: context, applicationName: 'PDF Manager Plus', applicationVersion: '5.1', children: const [Text('Developed by Arvin')])),
 
           ListTile(leading: const Icon(Icons.upload_file), title: const Text('Import File'), onTap: _importFile),
           SwitchListTile(secondary: const Icon(Icons.brightness_6), title: const Text('Dark / Light Mode'), value: widget.dark, onChanged: widget.onThemeChanged),
@@ -344,17 +354,15 @@ class _HomePageState extends State<HomePage> {
             trailing: isDir
                 ? null
                 : Row(mainAxisSize: MainAxisSize.min, children: [
-                    IconButton(
-                        icon: Icon(_favorites.contains(path) ? Icons.favorite : Icons.favorite_border, color: Colors.red),
-                        onPressed: () {
-                          if (_favorites.contains(path)) {
-                            _favorites.remove(path);
-                          } else {
-                            _favorites.add(path);
-                          }
-                          _saveLists();
-                          setState(() {});
-                        }),
+                    IconButton(icon: Icon(_favorites.contains(path) ? Icons.favorite : Icons.favorite_border, color: Colors.red), onPressed: () {
+                      if (_favorites.contains(path)) {
+                        _favorites.remove(path);
+                      } else {
+                        _favorites.add(path);
+                      }
+                      _saveLists();
+                      setState(() {});
+                    }),
                     _pdfMenu(path),
                   ]),
             onTap: () => isDir ? Navigator.push(context, MaterialPageRoute(builder: (_) => FolderViewScreen(folderPath: path))) : _openViewer(path),
@@ -377,7 +385,6 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// 🔍 Basit arama delegate
 class FileSearchDelegate extends SearchDelegate<String> {
   final String initial;
   FileSearchDelegate({required this.initial}) {
@@ -394,7 +401,7 @@ class FileSearchDelegate extends SearchDelegate<String> {
   Widget buildSuggestions(BuildContext context) => Container();
 }
 
-// 📁 Klasör görüntüleme
+// 📁 Klasör görünümü
 class FolderViewScreen extends StatelessWidget {
   final String folderPath;
   const FolderViewScreen({super.key, required this.folderPath});
@@ -411,7 +418,7 @@ class FolderViewScreen extends StatelessWidget {
   }
 }
 
-// 📄 PDF Viewer (viewer.html)
+// 📄 PDF görüntüleme
 class ViewerScreen extends StatefulWidget {
   final File file;
   final String fileName;
