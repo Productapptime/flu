@@ -23,6 +23,9 @@ class _PdfManagerAppState extends State<PdfManagerApp> {
   ThemeMode _themeMode = ThemeMode.light;
   String _language = 'en';
   final List<File> _pdfFiles = [];
+  final List<File> _recentFiles = [];
+  final List<File> _favoriteFiles = [];
+  int _selectedIndex = 0;
 
   void _toggleTheme(bool isDark) {
     setState(() => _themeMode = isDark ? ThemeMode.dark : ThemeMode.light);
@@ -37,8 +40,25 @@ class _PdfManagerAppState extends State<PdfManagerApp> {
 
   void _addPdfFile(File file) {
     if (!_pdfFiles.any((f) => f.path == file.path)) {
-      setState(() => _pdfFiles.add(file));
+      setState(() {
+        _pdfFiles.add(file);
+        _recentFiles.insert(0, file);
+      });
     }
+  }
+
+  void _toggleFavorite(File file) {
+    setState(() {
+      if (_favoriteFiles.contains(file)) {
+        _favoriteFiles.remove(file);
+      } else {
+        _favoriteFiles.add(file);
+      }
+    });
+  }
+
+  void _onNavTap(int index) {
+    setState(() => _selectedIndex = index);
   }
 
   @override
@@ -51,11 +71,16 @@ class _PdfManagerAppState extends State<PdfManagerApp> {
       debugShowCheckedModeBanner: false,
       home: PdfHomePage(
         pdfFiles: _pdfFiles,
+        recentFiles: _recentFiles,
+        favoriteFiles: _favoriteFiles,
         onImport: _addPdfFile,
         isDark: _themeMode == ThemeMode.dark,
         onToggleTheme: _toggleTheme,
         language: _language,
         onLanguageChange: _setLanguage,
+        onFavoriteToggle: _toggleFavorite,
+        selectedIndex: _selectedIndex,
+        onNavTap: _onNavTap,
       ),
     );
   }
@@ -63,20 +88,30 @@ class _PdfManagerAppState extends State<PdfManagerApp> {
 
 class PdfHomePage extends StatelessWidget {
   final List<File> pdfFiles;
+  final List<File> recentFiles;
+  final List<File> favoriteFiles;
   final Function(File) onImport;
+  final Function(File) onFavoriteToggle;
   final bool isDark;
   final Function(bool) onToggleTheme;
   final String language;
   final Function(String) onLanguageChange;
+  final int selectedIndex;
+  final Function(int) onNavTap;
 
   const PdfHomePage({
     super.key,
     required this.pdfFiles,
+    required this.recentFiles,
+    required this.favoriteFiles,
     required this.onImport,
+    required this.onFavoriteToggle,
     required this.isDark,
     required this.onToggleTheme,
     required this.language,
     required this.onLanguageChange,
+    required this.selectedIndex,
+    required this.onNavTap,
   });
 
   Future<void> _importFile(BuildContext context) async {
@@ -103,7 +138,11 @@ class PdfHomePage extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ViewerScreen(file: file, fileName: p.basename(file.path), dark: isDark),
+        builder: (_) => ViewerScreen(
+          file: file,
+          fileName: p.basename(file.path),
+          dark: isDark,
+        ),
       ),
     );
   }
@@ -151,8 +190,38 @@ class PdfHomePage extends StatelessWidget {
     );
   }
 
+  Widget _buildFileList(BuildContext context, List<File> files) {
+    if (files.isEmpty) {
+      return const Center(child: Text('No files available'));
+    }
+    return ListView.builder(
+      itemCount: files.length,
+      itemBuilder: (context, index) {
+        final file = files[index];
+        final isFav = favoriteFiles.contains(file);
+        return ListTile(
+          leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+          title: Text(p.basename(file.path)),
+          subtitle: Text(file.path),
+          trailing: IconButton(
+            icon: Icon(isFav ? Icons.favorite : Icons.favorite_border, color: Colors.red),
+            onPressed: () => onFavoriteToggle(file),
+          ),
+          onTap: () => _openViewer(context, file),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final tabs = [
+      _buildFileList(context, pdfFiles),
+      _buildFileList(context, recentFiles),
+      _buildFileList(context, favoriteFiles),
+      const Center(child: Text('Tools coming soon...')),
+    ];
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('PDF Manager Plus'),
@@ -201,20 +270,19 @@ class PdfHomePage extends StatelessWidget {
           ],
         ),
       ),
-      body: pdfFiles.isEmpty
-          ? const Center(child: Text('No PDF files imported'))
-          : ListView.builder(
-              itemCount: pdfFiles.length,
-              itemBuilder: (context, index) {
-                final file = pdfFiles[index];
-                return ListTile(
-                  leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-                  title: Text(p.basename(file.path)),
-                  subtitle: Text(file.path),
-                  onTap: () => _openViewer(context, file),
-                );
-              },
-            ),
+      body: tabs[selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: selectedIndex,
+        selectedItemColor: Colors.red,
+        unselectedItemColor: Colors.grey,
+        onTap: onNavTap,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'All Files'),
+          BottomNavigationBarItem(icon: Icon(Icons.access_time), label: 'Recent'),
+          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Favorites'),
+          BottomNavigationBarItem(icon: Icon(Icons.build), label: 'Tools'),
+        ],
+      ),
     );
   }
 }
