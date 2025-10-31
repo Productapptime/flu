@@ -1,4 +1,3 @@
-// lib/main.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -17,17 +16,13 @@ void main() async {
 
 class PdfManagerApp extends StatefulWidget {
   const PdfManagerApp({super.key});
-
   @override
   State<PdfManagerApp> createState() => _PdfManagerAppState();
 }
 
 class _PdfManagerAppState extends State<PdfManagerApp> {
   ThemeMode _themeMode = ThemeMode.light;
-
-  void toggleTheme(bool dark) {
-    setState(() => _themeMode = dark ? ThemeMode.dark : ThemeMode.light);
-  }
+  void toggleTheme(bool dark) => setState(() => _themeMode = dark ? ThemeMode.dark : ThemeMode.light);
 
   @override
   Widget build(BuildContext context) {
@@ -37,10 +32,7 @@ class _PdfManagerAppState extends State<PdfManagerApp> {
       darkTheme: ThemeData(primarySwatch: Colors.red, brightness: Brightness.dark),
       themeMode: _themeMode,
       debugShowCheckedModeBanner: false,
-      home: HomePage(
-        dark: _themeMode == ThemeMode.dark,
-        onThemeChanged: toggleTheme,
-      ),
+      home: HomePage(dark: _themeMode == ThemeMode.dark, onThemeChanged: toggleTheme),
     );
   }
 }
@@ -48,7 +40,6 @@ class _PdfManagerAppState extends State<PdfManagerApp> {
 class HomePage extends StatefulWidget {
   final bool dark;
   final Function(bool) onThemeChanged;
-
   const HomePage({super.key, required this.dark, required this.onThemeChanged});
 
   @override
@@ -114,7 +105,6 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
-    // recent'e ekle
     if (!_recent.contains(path)) {
       _recent.insert(0, path);
       await _saveLists();
@@ -156,21 +146,28 @@ class _HomePageState extends State<HomePage> {
     }
 
     if (_sortMode == 'Size') {
-      base.sort((a, b) => File(b).lengthSync().compareTo(File(a).lengthSync()));
+      base.sort((a, b) {
+        final fa = File(a);
+        final fb = File(b);
+        if (!fa.existsSync() || !fb.existsSync()) return 0;
+        return fb.lengthSync().compareTo(fa.lengthSync());
+      });
     } else if (_sortMode == 'Date') {
-      base.sort((a, b) =>
-          File(b).lastModifiedSync().compareTo(File(a).lastModifiedSync()));
+      base.sort((a, b) {
+        final fa = File(a);
+        final fb = File(b);
+        if (!fa.existsSync() || !fb.existsSync()) return 0;
+        return fb.lastModifiedSync().compareTo(fa.lastModifiedSync());
+      });
     } else {
       base.sort((a, b) => p.basename(a).compareTo(p.basename(b)));
     }
-
     return base;
   }
 
-  // ✅ Gerçekten cihazda görünen klasör oluşturma
+  // ✅ Gerçek klasör oluşturma ve listeye ekleme
   Future<void> _createFolder() async {
     final controller = TextEditingController();
-
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -181,15 +178,13 @@ class _HomePageState extends State<HomePage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () async {
               final folderName = controller.text.trim();
               if (folderName.isEmpty) return;
 
-              // 🔐 İzin kontrolü
               if (await Permission.manageExternalStorage.request().isGranted ||
                   await Permission.storage.request().isGranted) {
                 final baseDir =
@@ -201,11 +196,16 @@ class _HomePageState extends State<HomePage> {
                 final newDir = Directory('${baseDir.path}/$folderName');
                 if (!(await newDir.exists())) {
                   await newDir.create(recursive: true);
+                  if (!_allFiles.contains(newDir.path)) {
+                    _allFiles.add(newDir.path);
+                    await _saveLists();
+                  }
                   if (mounted) {
                     Navigator.pop(context);
+                    setState(() {});
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                         content: Text(
-                            'Klasör "${newDir.path}" başarıyla oluşturuldu.')));
+                            'Klasör "${p.basename(newDir.path)}" oluşturuldu.')));
                   }
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -260,9 +260,7 @@ class _HomePageState extends State<HomePage> {
                 context: context,
                 delegate: FileSearchDelegate(initial: _searchQuery),
               );
-              if (text != null) {
-                setState(() => _searchQuery = text);
-              }
+              if (text != null) setState(() => _searchQuery = text);
             },
           ),
           IconButton(
@@ -306,7 +304,7 @@ class _HomePageState extends State<HomePage> {
               onTap: () => showAboutDialog(
                 context: context,
                 applicationName: 'PDF Manager Plus',
-                applicationVersion: '4.2',
+                applicationVersion: '4.3',
                 children: const [Text('Developed by Arvin')],
               ),
             ),
@@ -331,33 +329,49 @@ class _HomePageState extends State<HomePage> {
       body: ListView.builder(
         itemCount: files.length,
         itemBuilder: (_, i) {
-          final f = File(files[i]);
-          final sizeMb = (f.lengthSync() / 1024 / 1024).toStringAsFixed(2);
-          final modified =
-              DateFormat('dd.MM.yyyy HH:mm').format(f.lastModifiedSync());
-          final selected = _selectedFiles.contains(files[i]);
+          final path = files[i];
+          final isDir = Directory(path).existsSync();
+          final icon = isDir ? Icons.folder : Icons.picture_as_pdf;
+          final color = isDir ? Colors.grey : Colors.red;
 
+          String subtitle = '';
+          if (!isDir) {
+            final f = File(path);
+            final sizeMb = (f.lengthSync() / 1024 / 1024).toStringAsFixed(2);
+            final modified =
+                DateFormat('dd.MM.yyyy HH:mm').format(f.lastModifiedSync());
+            subtitle = '$sizeMb MB • $modified';
+          }
+
+          final selected = _selectedFiles.contains(path);
           return ListTile(
-            leading: Icon(
-              selected ? Icons.check_circle : Icons.picture_as_pdf,
-              color: selected ? Colors.green : Colors.red,
-            ),
-            title: Text(p.basename(files[i])),
-            subtitle: Text('$sizeMb MB • $modified'),
-            trailing: IconButton(
-              icon: Icon(
-                _favorites.contains(files[i])
-                    ? Icons.favorite
-                    : Icons.favorite_border,
-                color: Colors.red,
-              ),
-              onPressed: () => _toggleFavorite(files[i]),
-            ),
+            leading:
+                Icon(selected ? Icons.check_circle : icon, color: color),
+            title: Text(p.basename(path)),
+            subtitle: Text(isDir ? 'Folder' : subtitle),
+            trailing: isDir
+                ? null
+                : IconButton(
+                    icon: Icon(
+                      _favorites.contains(path)
+                          ? Icons.favorite
+                          : Icons.favorite_border,
+                      color: Colors.red,
+                    ),
+                    onPressed: () => _toggleFavorite(path),
+                  ),
             onTap: () {
               if (_selectionMode) {
-                _toggleSelection(files[i]);
+                _toggleSelection(path);
+              } else if (isDir) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => FolderViewScreen(folderPath: path),
+                  ),
+                );
               } else {
-                _openViewer(files[i]);
+                _openViewer(path);
               }
             },
           );
@@ -388,31 +402,49 @@ class FileSearchDelegate extends SearchDelegate<String> {
   @override
   List<Widget>? buildActions(BuildContext context) =>
       [IconButton(icon: const Icon(Icons.clear), onPressed: () => query = '')];
-
   @override
   Widget? buildLeading(BuildContext context) => IconButton(
       icon: const Icon(Icons.arrow_back),
       onPressed: () => close(context, query));
-
   @override
   Widget buildResults(BuildContext context) => Container();
-
   @override
   Widget buildSuggestions(BuildContext context) => Container();
 }
 
+// 📂 Klasör içeriği
+class FolderViewScreen extends StatelessWidget {
+  final String folderPath;
+  const FolderViewScreen({super.key, required this.folderPath});
+
+  @override
+  Widget build(BuildContext context) {
+    final dir = Directory(folderPath);
+    final files = dir.existsSync() ? dir.listSync() : [];
+    return Scaffold(
+      appBar: AppBar(title: Text(p.basename(folderPath))),
+      body: files.isEmpty
+          ? const Center(child: Text('This folder is empty'))
+          : ListView(
+              children: files.map((f) {
+                final isDir = FileSystemEntity.isDirectorySync(f.path);
+                return ListTile(
+                  leading: Icon(isDir ? Icons.folder : Icons.picture_as_pdf),
+                  title: Text(p.basename(f.path)),
+                );
+              }).toList(),
+            ),
+    );
+  }
+}
+
+// 📖 PDF görüntüleme
 class ViewerScreen extends StatefulWidget {
   final File file;
   final String fileName;
   final bool dark;
-
-  const ViewerScreen({
-    super.key,
-    required this.file,
-    required this.fileName,
-    required this.dark,
-  });
-
+  const ViewerScreen(
+      {super.key, required this.file, required this.fileName, required this.dark});
   @override
   State<ViewerScreen> createState() => _ViewerScreenState();
 }
@@ -420,7 +452,6 @@ class ViewerScreen extends StatefulWidget {
 class _ViewerScreenState extends State<ViewerScreen> {
   InAppWebViewController? _controller;
   bool _loaded = false;
-
   String _viewerUrl() {
     final fileUri = Uri.file(widget.file.path).toString();
     final dark = widget.dark ? 'true' : 'false';
@@ -436,16 +467,15 @@ class _ViewerScreenState extends State<ViewerScreen> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.print),
-            onPressed: () async {
-              final bytes = await widget.file.readAsBytes();
-              await Printing.layoutPdf(onLayout: (_) => bytes);
-            },
-          ),
+              icon: const Icon(Icons.print),
+              onPressed: () async {
+                final bytes = await widget.file.readAsBytes();
+                await Printing.layoutPdf(onLayout: (_) => bytes);
+              }),
           IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: () => Share.shareXFiles([XFile(widget.file.path)]),
-          ),
+              icon: const Icon(Icons.share),
+              onPressed: () =>
+                  Share.shareXFiles([XFile(widget.file.path)])),
         ],
       ),
       body: Stack(
@@ -455,12 +485,10 @@ class _ViewerScreenState extends State<ViewerScreen> {
             initialSettings: InAppWebViewSettings(
               javaScriptEnabled: true,
               allowFileAccess: true,
-              allowFileAccessFromFileURLs: true,
               allowUniversalAccessFromFileURLs: true,
               supportZoom: true,
               useHybridComposition: true,
             ),
-            onWebViewCreated: (controller) => _controller = controller,
             onLoadStop: (_, __) => setState(() => _loaded = true),
           ),
           if (!_loaded)
