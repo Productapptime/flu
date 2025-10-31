@@ -4,17 +4,15 @@ import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:path/path.dart' as path;
+import 'package:path/path.dart' as p;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 🔐 İzinleri iste
   await _requestPermissions();
-
   runApp(const PdfManagerPlusApp());
 }
 
+/// 🔐 Android 11+ tam depolama izinlerini kontrol eder.
 Future<void> _requestPermissions() async {
   if (await Permission.manageExternalStorage.isDenied) {
     await Permission.manageExternalStorage.request();
@@ -33,8 +31,8 @@ class PdfManagerPlusApp extends StatelessWidget {
       title: 'PDF Manager Plus',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorSchemeSeed: Colors.deepPurple,
         useMaterial3: true,
+        colorSchemeSeed: Colors.indigo,
       ),
       home: const PdfHomePage(),
     );
@@ -51,31 +49,32 @@ class PdfHomePage extends StatefulWidget {
 class _PdfHomePageState extends State<PdfHomePage> {
   int _selectedIndex = 0;
   List<String> allFiles = [];
-  List<String> favoriteFiles = [];
-  List<String> recentFiles = [];
+  List<String> favorites = [];
+  List<String> recents = [];
 
   @override
   void initState() {
     super.initState();
-    _loadSavedLists();
+    _loadLists();
   }
 
-  Future<void> _loadSavedLists() async {
+  Future<void> _loadLists() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       allFiles = prefs.getStringList('allFiles') ?? [];
-      favoriteFiles = prefs.getStringList('favoriteFiles') ?? [];
-      recentFiles = prefs.getStringList('recentFiles') ?? [];
+      favorites = prefs.getStringList('favorites') ?? [];
+      recents = prefs.getStringList('recents') ?? [];
     });
   }
 
   Future<void> _saveLists() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('allFiles', allFiles);
-    await prefs.setStringList('favoriteFiles', favoriteFiles);
-    await prefs.setStringList('recentFiles', recentFiles);
+    await prefs.setStringList('favorites', favorites);
+    await prefs.setStringList('recents', recents);
   }
 
+  /// 📂 PDF import et (FilePicker ile)
   Future<void> _importPdf() async {
     final manageStatus = await Permission.manageExternalStorage.request();
     final storageStatus = await Permission.storage.request();
@@ -96,14 +95,11 @@ class _PdfHomePageState extends State<PdfHomePage> {
       if (result != null && result.files.single.path != null) {
         final filePath = result.files.single.path!;
         if (!allFiles.contains(filePath)) {
-          setState(() {
-            allFiles.add(filePath);
-          });
+          setState(() => allFiles.add(filePath));
           await _saveLists();
         }
-
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('PDF eklendi: ${result.files.single.name}')),
+          SnackBar(content: Text('PDF eklendi: ${p.basename(filePath)}')),
         );
       }
     } catch (e) {
@@ -113,7 +109,13 @@ class _PdfHomePageState extends State<PdfHomePage> {
     }
   }
 
-  void _openPdf(String filePath) {
+  /// 📄 PDF görüntüleme sayfasına yönlendir
+  void _openPdf(String filePath) async {
+    if (!recents.contains(filePath)) {
+      setState(() => recents.insert(0, filePath));
+      await _saveLists();
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -122,53 +124,52 @@ class _PdfHomePageState extends State<PdfHomePage> {
     );
   }
 
-  Widget _buildFileList(List<String> files) {
-    if (files.isEmpty) {
+  void _toggleFavorite(String filePath) async {
+    setState(() {
+      favorites.contains(filePath)
+          ? favorites.remove(filePath)
+          : favorites.add(filePath);
+    });
+    await _saveLists();
+  }
+
+  /// 📋 PDF listesi
+  Widget _buildPdfList(List<String> list) {
+    if (list.isEmpty) {
       return const Center(child: Text("Henüz PDF bulunmuyor."));
     }
 
     return ListView.builder(
-      itemCount: files.length,
+      itemCount: list.length,
       itemBuilder: (context, index) {
-        final fileName = path.basename(files[index]);
+        final path = list[index];
+        final name = p.basename(path);
+        final isFav = favorites.contains(path);
+
         return ListTile(
-          leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-          title: Text(fileName),
-          subtitle: Text(files[index]),
+          leading: const Icon(Icons.picture_as_pdf, color: Colors.indigo),
+          title: Text(name),
           trailing: IconButton(
             icon: Icon(
-              favoriteFiles.contains(files[index])
-                  ? Icons.favorite
-                  : Icons.favorite_border,
-              color: Colors.pinkAccent,
+              isFav ? Icons.favorite : Icons.favorite_border,
+              color: isFav ? Colors.red : null,
             ),
-            onPressed: () {
-              setState(() {
-                if (favoriteFiles.contains(files[index])) {
-                  favoriteFiles.remove(files[index]);
-                } else {
-                  favoriteFiles.add(files[index]);
-                }
-              });
-              _saveLists();
-            },
+            onPressed: () => _toggleFavorite(path),
           ),
-          onTap: () => _openPdf(files[index]),
+          onTap: () => _openPdf(path),
         );
       },
     );
   }
 
-  Widget _buildBody() {
+  Widget get _body {
     switch (_selectedIndex) {
-      case 0:
-        return _buildFileList(allFiles);
       case 1:
-        return _buildFileList(recentFiles);
+        return _buildPdfList(recents);
       case 2:
-        return _buildFileList(favoriteFiles);
+        return _buildPdfList(favorites);
       default:
-        return const Center(child: Text("Bilinmeyen sekme"));
+        return _buildPdfList(allFiles);
     }
   }
 
@@ -176,19 +177,7 @@ class _PdfHomePageState extends State<PdfHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _selectedIndex == 0
-              ? "All Files"
-              : _selectedIndex == 1
-                  ? "Recent"
-                  : "Favorites",
-        ),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
+        title: Text(["All Files", "Recent", "Favorites"][_selectedIndex]),
         actions: [
           IconButton(
             icon: const Icon(Icons.upload_file),
@@ -200,30 +189,31 @@ class _PdfHomePageState extends State<PdfHomePage> {
         child: ListView(
           children: const [
             DrawerHeader(
-              decoration: BoxDecoration(color: Colors.deepPurple),
-              child: Center(
+              decoration: BoxDecoration(color: Colors.indigo),
+              child: Align(
+                alignment: Alignment.centerLeft,
                 child: Text(
                   'PDF Manager Plus',
                   style: TextStyle(color: Colors.white, fontSize: 22),
                 ),
               ),
             ),
-            ListTile(leading: Icon(Icons.settings), title: Text("Ayarlar")),
-            ListTile(leading: Icon(Icons.info), title: Text("Hakkında")),
+            ListTile(
+              leading: Icon(Icons.info_outline),
+              title: Text("About"),
+              subtitle: Text("PDF Manager using Flutter + PDF.js"),
+            ),
           ],
         ),
       ),
-      body: _buildBody(),
+      body: _body,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+        onDestinationSelected: (i) => setState(() => _selectedIndex = i),
         destinations: const [
-          NavigationDestination(
-              icon: Icon(Icons.folder), label: "All Files"),
-          NavigationDestination(
-              icon: Icon(Icons.access_time), label: "Recent"),
-          NavigationDestination(
-              icon: Icon(Icons.favorite), label: "Favorites"),
+          NavigationDestination(icon: Icon(Icons.folder), label: "All"),
+          NavigationDestination(icon: Icon(Icons.access_time), label: "Recent"),
+          NavigationDestination(icon: Icon(Icons.favorite), label: "Favorites"),
         ],
       ),
     );
@@ -236,25 +226,24 @@ class PdfViewerPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pdfUri = Uri.file(pdfPath).toString();
-    final viewerUrl = Uri.file(
-      '${Directory.current.path}/assets/web/viewer.html?file=$pdfUri',
-    ).toString();
+    // 📁 PDF tam dosya URL’si
+    final pdfFileUrl = Uri.file(pdfPath).toString();
+
+    // 🔗 Viewer HTML yoluna PDF parametresi ekleniyor
+    final viewerUrl =
+        "file:///android_asset/flutter_assets/assets/web/viewer.html?file=$pdfFileUrl";
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(path.basename(pdfPath)),
-      ),
+      appBar: AppBar(title: Text(p.basename(pdfPath))),
       body: InAppWebView(
-        initialFile: "assets/web/viewer.html",
-        initialUrlRequest: URLRequest(
-          url: WebUri("file:///$viewerUrl"),
-        ),
-        initialOptions: InAppWebViewGroupOptions(
-          crossPlatform: InAppWebViewOptions(
-            allowFileAccessFromFileURLs: true,
-            allowUniversalAccessFromFileURLs: true,
-          ),
+        initialUrlRequest: URLRequest(url: WebUri(viewerUrl)),
+        initialSettings: InAppWebViewSettings(
+          allowFileAccessFromFileURLs: true,
+          allowUniversalAccessFromFileURLs: true,
+          javaScriptEnabled: true,
+          supportZoom: true,
+          builtInZoomControls: true,
+          displayZoomControls: false,
         ),
       ),
     );
