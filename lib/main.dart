@@ -8,7 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
-import 'package:permission_handler/permission_handler.dart'; // ✅ EKLENDİ
+import 'package:path_provider/path_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -76,39 +76,38 @@ class _HomePageState extends State<HomePage> {
   List<String> _recent = [];
   String _searchQuery = '';
   String _sortMode = 'Name';
+  Directory? _baseDir;
 
   @override
   void initState() {
     super.initState();
-    _checkStoragePermission(); // ✅ EKLENDİ
-    _loadLists();
+    _initDir();
   }
 
-  Future<void> _checkStoragePermission() async {
-    if (Platform.isAndroid) {
-      if (await Permission.manageExternalStorage.isGranted ||
-          await Permission.storage.isGranted) {
-        return;
-      }
+  Future<void> _initDir() async {
+    _baseDir = await getApplicationDocumentsDirectory();
+    await _loadLists();
+    await _scanAllFiles();
+  }
 
-      final status = await Permission.manageExternalStorage.request();
-      if (!status.isGranted) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content:
-                  Text('Depolama izni verilmedi. Dosya erişimi sağlanamadı.'),
-            ),
-          );
-        }
+  Future<void> _scanAllFiles() async {
+    if (_baseDir == null) return;
+    final List<String> pdfPaths = [];
+    final dir = Directory(_baseDir!.path);
+    final entities = dir.listSync(recursive: true);
+    for (var e in entities) {
+      if (e is File && e.path.toLowerCase().endsWith('.pdf')) {
+        pdfPaths.add(e.path);
       }
     }
+    setState(() {
+      _allFiles = pdfPaths;
+    });
   }
 
   Future<void> _loadLists() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _allFiles = prefs.getStringList('allFiles') ?? [];
       _favorites = prefs.getStringList('favorites') ?? [];
       _recent = prefs.getStringList('recent') ?? [];
     });
@@ -116,27 +115,23 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _saveLists() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('allFiles', _allFiles);
     await prefs.setStringList('favorites', _favorites);
     await prefs.setStringList('recent', _recent);
   }
 
   Future<void> _importFile() async {
-    await _checkStoragePermission(); // ✅ garanti için tekrar kontrol
     final res = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
     );
     if (res != null && res.files.single.path != null) {
       final path = res.files.single.path!;
-      if (!_allFiles.contains(path)) {
-        _allFiles.add(path);
-        await _saveLists();
-        setState(() {});
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('PDF dosyası eklendi: ${p.basename(path)}')),
-        );
-      }
+      final imported = File(path);
+      final newPath = p.join(_baseDir!.path, p.basename(path));
+      await imported.copy(newPath);
+      await _scanAllFiles();
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('File imported successfully')));
     }
   }
 
@@ -207,34 +202,39 @@ class _HomePageState extends State<HomePage> {
     return base;
   }
 
-  void _createFolder() {
+  Future<void> _createFolder() async {
+    final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (_) {
-        final controller = TextEditingController();
-        return AlertDialog(
-          title: const Text('Create Folder'),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(hintText: 'Folder name'),
+      builder: (_) => AlertDialog(
+        title: const Text('Create Folder'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'Folder name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
+          ElevatedButton(
+            onPressed: () async {
+              final name = controller.text.trim();
+              if (name.isEmpty || _baseDir == null) return;
+              final newFolder = Directory(p.join(_baseDir!.path, name));
+              if (!(await newFolder.exists())) {
+                await newFolder.create(recursive: true);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Folder "${controller.text}" created')),
+                  SnackBar(content: Text('Folder "$name" created')),
                 );
-              },
-              child: const Text('Create'),
-            ),
-          ],
-        );
-      },
+                await _scanAllFiles();
+              }
+              if (mounted) Navigator.pop(context);
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -254,9 +254,7 @@ class _HomePageState extends State<HomePage> {
                 context: context,
                 delegate: FileSearchDelegate(initial: _searchQuery),
               );
-              if (text != null) {
-                setState(() => _searchQuery = text);
-              }
+              if (text != null) setState(() => _searchQuery = text);
             },
           ),
           IconButton(
@@ -274,7 +272,8 @@ class _HomePageState extends State<HomePage> {
           ),
           IconButton(
             icon: Icon(
-                _selectionMode ? Icons.close : Icons.select_all_outlined),
+              _selectionMode ? Icons.close : Icons.select_all_outlined,
+            ),
             onPressed: () =>
                 setState(() => _selectionMode = !_selectionMode),
           ),
@@ -295,10 +294,8 @@ class _HomePageState extends State<HomePage> {
               onTap: () => showAboutDialog(
                 context: context,
                 applicationName: 'PDF Manager Plus',
-                applicationVersion: '4.0',
-                children: const [
-                  Text('Developed by Arvin'),
-                ],
+                applicationVersion: '4.1',
+                children: const [Text('Developed by Arvin')],
               ),
             ),
             ListTile(
