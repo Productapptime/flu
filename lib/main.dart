@@ -8,7 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -167,10 +167,9 @@ class _HomePageState extends State<HomePage> {
     return base;
   }
 
+  // ✅ Gerçekten cihazda görünen klasör oluşturma
   Future<void> _createFolder() async {
     final controller = TextEditingController();
-    final dir = await getExternalStorageDirectory();
-    if (dir == null) return;
 
     showDialog(
       context: context,
@@ -187,17 +186,34 @@ class _HomePageState extends State<HomePage> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                final newDir =
-                    Directory('${dir.path}/${controller.text}');
+              final folderName = controller.text.trim();
+              if (folderName.isEmpty) return;
+
+              // 🔐 İzin kontrolü
+              if (await Permission.manageExternalStorage.request().isGranted ||
+                  await Permission.storage.request().isGranted) {
+                final baseDir =
+                    Directory('/storage/emulated/0/Download/PDFManagerPlus');
+                if (!(await baseDir.exists())) {
+                  await baseDir.create(recursive: true);
+                }
+
+                final newDir = Directory('${baseDir.path}/$folderName');
                 if (!(await newDir.exists())) {
                   await newDir.create(recursive: true);
                   if (mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text('Folder "${controller.text}" created')));
+                        content: Text(
+                            'Klasör "${newDir.path}" başarıyla oluşturuldu.')));
                   }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Bu isimde bir klasör zaten var.')));
                 }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Depolama izni verilmedi.')));
               }
             },
             child: const Text('Create'),
@@ -290,7 +306,7 @@ class _HomePageState extends State<HomePage> {
               onTap: () => showAboutDialog(
                 context: context,
                 applicationName: 'PDF Manager Plus',
-                applicationVersion: '4.1',
+                applicationVersion: '4.2',
                 children: const [Text('Developed by Arvin')],
               ),
             ),
