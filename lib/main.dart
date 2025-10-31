@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,23 +26,15 @@ class _PdfManagerAppState extends State<PdfManagerApp> {
   ThemeMode _themeMode = ThemeMode.light;
 
   void toggleTheme(bool dark) {
-    setState(() {
-      _themeMode = dark ? ThemeMode.dark : ThemeMode.light;
-    });
+    setState(() => _themeMode = dark ? ThemeMode.dark : ThemeMode.light);
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'PDF Manager Plus',
-      theme: ThemeData(
-        primarySwatch: Colors.red,
-        brightness: Brightness.light,
-      ),
-      darkTheme: ThemeData(
-        primarySwatch: Colors.red,
-        brightness: Brightness.dark,
-      ),
+      theme: ThemeData(primarySwatch: Colors.red, brightness: Brightness.light),
+      darkTheme: ThemeData(primarySwatch: Colors.red, brightness: Brightness.dark),
       themeMode: _themeMode,
       debugShowCheckedModeBanner: false,
       home: HomePage(
@@ -56,11 +49,7 @@ class HomePage extends StatefulWidget {
   final bool dark;
   final Function(bool) onThemeChanged;
 
-  const HomePage({
-    super.key,
-    required this.dark,
-    required this.onThemeChanged,
-  });
+  const HomePage({super.key, required this.dark, required this.onThemeChanged});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -160,17 +149,14 @@ class _HomePageState extends State<HomePage> {
 
     if (_searchQuery.isNotEmpty) {
       base = base
-          .where((path) =>
-              path.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-              p.basename(path)
-                  .toLowerCase()
-                  .contains(_searchQuery.toLowerCase()))
+          .where((path) => p.basename(path)
+              .toLowerCase()
+              .contains(_searchQuery.toLowerCase()))
           .toList();
     }
 
     if (_sortMode == 'Size') {
-      base.sort((a, b) =>
-          File(b).lengthSync().compareTo(File(a).lengthSync()));
+      base.sort((a, b) => File(b).lengthSync().compareTo(File(a).lengthSync()));
     } else if (_sortMode == 'Date') {
       base.sort((a, b) =>
           File(b).lastModifiedSync().compareTo(File(a).lastModifiedSync()));
@@ -181,35 +167,65 @@ class _HomePageState extends State<HomePage> {
     return base;
   }
 
-  void _createFolder() {
+  Future<void> _createFolder() async {
+    final controller = TextEditingController();
+    final dir = await getExternalStorageDirectory();
+    if (dir == null) return;
+
     showDialog(
       context: context,
-      builder: (_) {
-        final controller = TextEditingController();
-        return AlertDialog(
-          title: const Text('Create Folder'),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(hintText: 'Folder name'),
+      builder: (_) => AlertDialog(
+        title: const Text('Create Folder'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'Folder name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Folder "${controller.text}" created')),
-                );
-              },
-              child: const Text('Create'),
-            ),
-          ],
-        );
-      },
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.isNotEmpty) {
+                final newDir =
+                    Directory('${dir.path}/${controller.text}');
+                if (!(await newDir.exists())) {
+                  await newDir.create(recursive: true);
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text('Folder "${controller.text}" created')));
+                  }
+                }
+              }
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
     );
+  }
+
+  void _toggleSelection(String path) {
+    setState(() {
+      if (_selectedFiles.contains(path)) {
+        _selectedFiles.remove(path);
+      } else {
+        _selectedFiles.add(path);
+      }
+    });
+  }
+
+  void _deleteSelected() {
+    setState(() {
+      _allFiles.removeWhere((e) => _selectedFiles.contains(e));
+      _favorites.removeWhere((e) => _selectedFiles.contains(e));
+      _recent.removeWhere((e) => _selectedFiles.contains(e));
+      _selectedFiles.clear();
+      _selectionMode = false;
+    });
+    _saveLists();
   }
 
   @override
@@ -247,10 +263,15 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
           IconButton(
-            icon: Icon(
-                _selectionMode ? Icons.close : Icons.select_all_outlined),
-            onPressed: () =>
-                setState(() => _selectionMode = !_selectionMode),
+            icon:
+                Icon(_selectionMode ? Icons.delete : Icons.select_all_outlined),
+            onPressed: () {
+              if (_selectionMode && _selectedFiles.isNotEmpty) {
+                _deleteSelected();
+              } else {
+                setState(() => _selectionMode = !_selectionMode);
+              }
+            },
           ),
         ],
       ),
@@ -269,10 +290,8 @@ class _HomePageState extends State<HomePage> {
               onTap: () => showAboutDialog(
                 context: context,
                 applicationName: 'PDF Manager Plus',
-                applicationVersion: '4.0',
-                children: const [
-                  Text('Developed by Arvin'),
-                ],
+                applicationVersion: '4.1',
+                children: const [Text('Developed by Arvin')],
               ),
             ),
             ListTile(
@@ -300,8 +319,13 @@ class _HomePageState extends State<HomePage> {
           final sizeMb = (f.lengthSync() / 1024 / 1024).toStringAsFixed(2);
           final modified =
               DateFormat('dd.MM.yyyy HH:mm').format(f.lastModifiedSync());
+          final selected = _selectedFiles.contains(files[i]);
+
           return ListTile(
-            leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+            leading: Icon(
+              selected ? Icons.check_circle : Icons.picture_as_pdf,
+              color: selected ? Colors.green : Colors.red,
+            ),
             title: Text(p.basename(files[i])),
             subtitle: Text('$sizeMb MB • $modified'),
             trailing: IconButton(
@@ -315,11 +339,7 @@ class _HomePageState extends State<HomePage> {
             ),
             onTap: () {
               if (_selectionMode) {
-                setState(() {
-                  _selectedFiles.contains(files[i])
-                      ? _selectedFiles.remove(files[i])
-                      : _selectedFiles.add(files[i]);
-                });
+                _toggleSelection(files[i]);
               } else {
                 _openViewer(files[i]);
               }
@@ -354,8 +374,9 @@ class FileSearchDelegate extends SearchDelegate<String> {
       [IconButton(icon: const Icon(Icons.clear), onPressed: () => query = '')];
 
   @override
-  Widget? buildLeading(BuildContext context) =>
-      IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, query));
+  Widget? buildLeading(BuildContext context) => IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () => close(context, query));
 
   @override
   Widget buildResults(BuildContext context) => Container();
