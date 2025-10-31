@@ -1,20 +1,21 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
-import 'package:flutter/services.dart' show rootBundle; // ✅ eklendi
+import 'package:permission_handler/permission_handler.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:printing/printing.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _requestPermissions();
-  runApp(const PdfManagerPlusApp());
+  runApp(const PdfManagerApp());
 }
 
-/// 📂 Android 11+ için depolama izinleri
+/// 📂 Android 11+ depolama izinleri
 Future<void> _requestPermissions() async {
   await [
     Permission.manageExternalStorage,
@@ -22,22 +23,37 @@ Future<void> _requestPermissions() async {
   ].request();
 }
 
-class PdfManagerPlusApp extends StatelessWidget {
-  const PdfManagerPlusApp({super.key});
+/// Uygulama kökü
+class PdfManagerApp extends StatefulWidget {
+  const PdfManagerApp({super.key});
+  @override
+  State<PdfManagerApp> createState() => _PdfManagerAppState();
+}
+
+class _PdfManagerAppState extends State<PdfManagerApp> {
+  bool darkMode = false;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'PDF Manager Plus',
       debugShowCheckedModeBanner: false,
+      themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
+      darkTheme: ThemeData.dark(useMaterial3: true),
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.indigo),
-      home: const PdfHomePage(),
+      home: PdfHomePage(
+        dark: darkMode,
+        onToggleTheme: () => setState(() => darkMode = !darkMode),
+      ),
     );
   }
 }
 
+/// 🏠 Ana Sayfa
 class PdfHomePage extends StatefulWidget {
-  const PdfHomePage({super.key});
+  final bool dark;
+  final VoidCallback onToggleTheme;
+  const PdfHomePage({super.key, required this.dark, required this.onToggleTheme});
 
   @override
   State<PdfHomePage> createState() => _PdfHomePageState();
@@ -114,7 +130,11 @@ class _PdfHomePageState extends State<PdfHomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PdfViewerPage(pdfPath: filePath),
+        builder: (_) => ViewerScreen(
+          file: File(filePath),
+          fileName: p.basename(filePath),
+          dark: widget.dark,
+        ),
       ),
     );
   }
@@ -173,9 +193,10 @@ class _PdfHomePageState extends State<PdfHomePage> {
       appBar: AppBar(
         title: Text(["All Files", "Recent", "Favorites"][_selectedIndex]),
         actions: [
+          IconButton(icon: const Icon(Icons.upload_file), onPressed: _importPdf),
           IconButton(
-            icon: const Icon(Icons.upload_file),
-            onPressed: _importPdf,
+            icon: Icon(widget.dark ? Icons.dark_mode : Icons.light_mode),
+            onPressed: widget.onToggleTheme,
           ),
         ],
       ),
@@ -195,7 +216,7 @@ class _PdfHomePageState extends State<PdfHomePage> {
             ListTile(
               leading: Icon(Icons.info_outline),
               title: Text("About"),
-              subtitle: Text("Native InAppWebView PDF.js Viewer"),
+              subtitle: Text("InAppWebView + Mozilla PDF.js Viewer"),
             ),
           ],
         ),
@@ -214,60 +235,150 @@ class _PdfHomePageState extends State<PdfHomePage> {
   }
 }
 
-/// 🧭 PDF Viewer Sayfası
-class PdfViewerPage extends StatefulWidget {
-  final String pdfPath;
-  const PdfViewerPage({super.key, required this.pdfPath});
+/// 🧭 PDF Viewer (tek dosya içinde)
+class ViewerScreen extends StatefulWidget {
+  final File file;
+  final String fileName;
+  final bool dark;
+  const ViewerScreen({
+    super.key,
+    required this.file,
+    required this.fileName,
+    required this.dark,
+  });
 
   @override
-  State<PdfViewerPage> createState() => _PdfViewerPageState();
+  State<ViewerScreen> createState() => _ViewerScreenState();
 }
 
-class _PdfViewerPageState extends State<PdfViewerPage> {
-  late InAppWebViewController _controller;
+class _ViewerScreenState extends State<ViewerScreen> {
+  InAppWebViewController? _controller;
+  bool _loaded = false;
+  File? _savedFile;
 
-  /// assets/web/viewer.html dosyasını cihazın temp klasörüne kopyalayıp oradan açıyoruz.
-  Future<String> _prepareLocalViewer() async {
-    final tempDir = await getTemporaryDirectory();
-    final viewerFile = File('${tempDir.path}/viewer.html');
+  String _makeViewerUrl() {
+    final fileUri = Uri.file(widget.file.path).toString();
+    final dark = widget.dark ? 'true' : 'false';
+    return 'file:///android_asset/flutter_assets/assets/web/viewer.html?file=${Uri.encodeComponent(fileUri)}&dark=$dark';
+  }
 
-    // Eğer daha önce kopyalanmadıysa asset'ten yükle
-    if (!await viewerFile.exists()) {
-      final data = await rootBundle.loadString('assets/web/viewer.html');
-      await viewerFile.writeAsString(data);
+  Future<void> _handleOnPdfSaved(List<dynamic> args) async {
+    try {
+      final originalName = args.isNotEmpty ? (args[0] as String) : widget.fileName;
+      final base64Data = (args.length > 1 && args[1] != null) ? args[1] as String : null;
+      final dir = widget.file.parent.path;
+      final savedName = 'update_$originalName';
+      final newPath = p.join(dir, savedName);
+
+      if (base64Data != null && base64Data.isNotEmpty) {
+        final bytes = base64Decode(base64Data);
+        final f = await File(newPath).writeAsBytes(bytes);
+        _savedFile = f;
+      } else {
+        final f = await widget.file.copy(newPath);
+        _savedFile = f;
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('${p.basename(_savedFile!.path)} kaydedildi')));
+      }
+    } catch (e) {
+      debugPrint('onPdfSaved error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Kaydetme başarısız')));
+      }
     }
+  }
 
-    return viewerFile.path;
+  Future<void> _printFile() async {
+    try {
+      final pdfData = await widget.file.readAsBytes();
+      await Printing.layoutPdf(onLayout: (format) => pdfData);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Yazdırma başarısız')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final pdfUri = Uri.file(widget.pdfPath).toString();
+    final url = _makeViewerUrl();
 
-    return FutureBuilder<String>(
-      future: _prepareLocalViewer(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
-
-        final viewerPath = snapshot.data!;
-        final viewerUri = WebUri(
-            'file://$viewerPath?file=$pdfUri'); // ✅ WebUri tipine dönüştürüldü
-
-        return Scaffold(
-          appBar: AppBar(title: Text(p.basename(widget.pdfPath))),
-          body: InAppWebView(
-            initialUrlRequest: URLRequest(url: viewerUri), // ✅ düzeltildi
-            initialSettings: InAppWebViewSettings(
-              allowFileAccessFromFileURLs: true,
-              allowUniversalAccessFromFileURLs: true,
-              javaScriptEnabled: true,
-            ),
-            onWebViewCreated: (controller) => _controller = controller,
-          ),
-        );
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pop(context, _savedFile);
+        return false;
       },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.fileName),
+          backgroundColor: widget.dark ? Colors.black : Colors.red,
+          foregroundColor: widget.dark ? Colors.red : Colors.white,
+          actions: [
+            IconButton(
+              icon: Icon(Icons.print,
+                  color: widget.dark ? Colors.red : Colors.white),
+              onPressed: _printFile,
+            ),
+            IconButton(
+              icon: Icon(Icons.share,
+                  color: widget.dark ? Colors.red : Colors.white),
+              onPressed: () async {
+                try {
+                  await Share.shareXFiles(
+                    [XFile(widget.file.path)],
+                    text: 'PDF Dosyası: ${widget.fileName}',
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Paylaşım başarısız')));
+                }
+              },
+            ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            Container(color: widget.dark ? Colors.black : Colors.transparent),
+            InAppWebView(
+              initialUrlRequest: URLRequest(url: WebUri(url)),
+              initialSettings: InAppWebViewSettings(
+                javaScriptEnabled: true,
+                allowFileAccess: true,
+                allowFileAccessFromFileURLs: true,
+                allowUniversalAccessFromFileURLs: true,
+                supportZoom: true,
+                useHybridComposition: true,
+              ),
+              onWebViewCreated: (controller) async {
+                _controller = controller;
+                controller.addJavaScriptHandler(
+                    handlerName: "onPdfSaved",
+                    callback: (args) {
+                      _handleOnPdfSaved(args);
+                    });
+              },
+              onLoadStop: (controller, url) {
+                setState(() => _loaded = true);
+              },
+              onConsoleMessage: (controller, message) {
+                debugPrint('WEBVIEW: ${message.message}');
+              },
+              onLoadError: (controller, url, code, message) {
+                debugPrint('WEBVIEW LOAD ERROR ($code): $message');
+              },
+            ),
+            if (!_loaded)
+              Center(
+                child: CircularProgressIndicator(
+                    color: widget.dark ? Colors.red : Colors.red),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
