@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -12,7 +13,7 @@ void main() async {
   runApp(const PdfManagerPlusApp());
 }
 
-/// 🔐 Android 11+ tam depolama izinlerini kontrol eder.
+/// 🔐 Android 11+ dosya izinlerini kontrol eder
 Future<void> _requestPermissions() async {
   if (await Permission.manageExternalStorage.isDenied) {
     await Permission.manageExternalStorage.request();
@@ -30,10 +31,7 @@ class PdfManagerPlusApp extends StatelessWidget {
     return MaterialApp(
       title: 'PDF Manager Plus',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.indigo,
-      ),
+      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.indigo),
       home: const PdfHomePage(),
     );
   }
@@ -74,7 +72,6 @@ class _PdfHomePageState extends State<PdfHomePage> {
     await prefs.setStringList('recents', recents);
   }
 
-  /// 📂 PDF import et (FilePicker ile)
   Future<void> _importPdf() async {
     final manageStatus = await Permission.manageExternalStorage.request();
     final storageStatus = await Permission.storage.request();
@@ -109,13 +106,11 @@ class _PdfHomePageState extends State<PdfHomePage> {
     }
   }
 
-  /// 📄 PDF görüntüleme sayfasına yönlendir
   void _openPdf(String filePath) async {
     if (!recents.contains(filePath)) {
       setState(() => recents.insert(0, filePath));
       await _saveLists();
     }
-
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -133,7 +128,6 @@ class _PdfHomePageState extends State<PdfHomePage> {
     await _saveLists();
   }
 
-  /// 📋 PDF listesi
   Widget _buildPdfList(List<String> list) {
     if (list.isEmpty) {
       return const Center(child: Text("Henüz PDF bulunmuyor."));
@@ -201,7 +195,7 @@ class _PdfHomePageState extends State<PdfHomePage> {
             ListTile(
               leading: Icon(Icons.info_outline),
               title: Text("About"),
-              subtitle: Text("PDF Manager using Flutter + PDF.js"),
+              subtitle: Text("PDF.js Embedded Viewer + File Picker"),
             ),
           ],
         ),
@@ -220,30 +214,61 @@ class _PdfHomePageState extends State<PdfHomePage> {
   }
 }
 
-class PdfViewerPage extends StatelessWidget {
+class PdfViewerPage extends StatefulWidget {
   final String pdfPath;
   const PdfViewerPage({super.key, required this.pdfPath});
 
   @override
+  State<PdfViewerPage> createState() => _PdfViewerPageState();
+}
+
+class _PdfViewerPageState extends State<PdfViewerPage> {
+  late InAppWebViewController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadViewer();
+  }
+
+  Future<void> _loadViewer() async {
+    // 📄 viewer.html içeriğini oku
+    String htmlTemplate = await rootBundle.loadString('assets/web/viewer.html');
+    String pdfUri = Uri.file(widget.pdfPath).toString();
+
+    // Flutter içinden PDF yolunu göm
+    String htmlWithPdf = htmlTemplate.replaceFirst('</body>', """
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const fileParam = "$pdfUri";
+    if (fileParam) {
+      if (window.PDFViewerApplication) {
+        PDFViewerApplication.open(fileParam);
+      } else {
+        document.addEventListener("webviewerloaded", () => {
+          PDFViewerApplication.open(fileParam);
+        });
+      }
+    }
+  });
+</script>
+</body>
+""");
+
+    // WebView'de yükle
+    await _controller.loadData(data: htmlWithPdf, mimeType: 'text/html', encoding: 'utf-8');
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // 📁 PDF tam dosya URL’si
-    final pdfFileUrl = Uri.file(pdfPath).toString();
-
-    // 🔗 Viewer HTML yoluna PDF parametresi ekleniyor
-    final viewerUrl =
-        "file:///android_asset/flutter_assets/assets/web/viewer.html?file=$pdfFileUrl";
-
     return Scaffold(
-      appBar: AppBar(title: Text(p.basename(pdfPath))),
+      appBar: AppBar(title: Text(p.basename(widget.pdfPath))),
       body: InAppWebView(
-        initialUrlRequest: URLRequest(url: WebUri(viewerUrl)),
+        onWebViewCreated: (controller) => _controller = controller,
         initialSettings: InAppWebViewSettings(
           allowFileAccessFromFileURLs: true,
           allowUniversalAccessFromFileURLs: true,
           javaScriptEnabled: true,
-          supportZoom: true,
-          builtInZoomControls: true,
-          displayZoomControls: false,
         ),
       ),
     );
