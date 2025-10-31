@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:file_picker/file_picker.dart';
@@ -40,10 +39,13 @@ class _PdfManagerAppState extends State<PdfManagerApp> {
 
   void _addPdfFile(File file) {
     if (!_pdfFiles.any((f) => f.path == file.path)) {
-      setState(() {
-        _pdfFiles.add(file);
-        _recentFiles.insert(0, file);
-      });
+      setState(() => _pdfFiles.add(file));
+    }
+  }
+
+  void _addRecent(File file) {
+    if (!_recentFiles.any((f) => f.path == file.path)) {
+      setState(() => _recentFiles.insert(0, file));
     }
   }
 
@@ -74,11 +76,12 @@ class _PdfManagerAppState extends State<PdfManagerApp> {
         recentFiles: _recentFiles,
         favoriteFiles: _favoriteFiles,
         onImport: _addPdfFile,
+        onRecent: _addRecent,
+        onFavoriteToggle: _toggleFavorite,
         isDark: _themeMode == ThemeMode.dark,
         onToggleTheme: _toggleTheme,
         language: _language,
         onLanguageChange: _setLanguage,
-        onFavoriteToggle: _toggleFavorite,
         selectedIndex: _selectedIndex,
         onNavTap: _onNavTap,
       ),
@@ -91,6 +94,7 @@ class PdfHomePage extends StatelessWidget {
   final List<File> recentFiles;
   final List<File> favoriteFiles;
   final Function(File) onImport;
+  final Function(File) onRecent;
   final Function(File) onFavoriteToggle;
   final bool isDark;
   final Function(bool) onToggleTheme;
@@ -105,6 +109,7 @@ class PdfHomePage extends StatelessWidget {
     required this.recentFiles,
     required this.favoriteFiles,
     required this.onImport,
+    required this.onRecent,
     required this.onFavoriteToggle,
     required this.isDark,
     required this.onToggleTheme,
@@ -142,6 +147,7 @@ class PdfHomePage extends StatelessWidget {
           file: file,
           fileName: p.basename(file.path),
           dark: isDark,
+          onViewed: () => onRecent(file),
         ),
       ),
     );
@@ -152,7 +158,7 @@ class PdfHomePage extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('About PDF Manager Plus'),
-        content: const Text('Simple and elegant PDF manager with built-in viewer.'),
+        content: const Text('Smart and elegant PDF manager with built-in viewer.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
         ],
@@ -222,9 +228,37 @@ class PdfHomePage extends StatelessWidget {
       const Center(child: Text('Tools coming soon...')),
     ];
 
+    final titles = ['All Files', 'Recent', 'Favorites', 'Tools'];
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('PDF Manager Plus'),
+        title: Text(titles[selectedIndex]),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Search not implemented.')),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.create_new_folder_outlined),
+            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Create folder not implemented.')),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.sort),
+            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Sort not implemented.')),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.select_all),
+            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Selection mode not implemented.')),
+            ),
+          ),
+        ],
       ),
       drawer: Drawer(
         child: ListView(
@@ -291,12 +325,14 @@ class ViewerScreen extends StatefulWidget {
   final File file;
   final String fileName;
   final bool dark;
+  final VoidCallback onViewed;
 
   const ViewerScreen({
     super.key,
     required this.file,
     required this.fileName,
     required this.dark,
+    required this.onViewed,
   });
 
   @override
@@ -304,8 +340,13 @@ class ViewerScreen extends StatefulWidget {
 }
 
 class _ViewerScreenState extends State<ViewerScreen> {
-  InAppWebViewController? _controller;
   bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => widget.onViewed());
+  }
 
   String _makeViewerUrl() {
     final fileUri = Uri.file(widget.file.path).toString();
@@ -335,11 +376,7 @@ class _ViewerScreenState extends State<ViewerScreen> {
               supportZoom: true,
               useHybridComposition: true,
             ),
-            onWebViewCreated: (controller) => _controller = controller,
             onLoadStop: (controller, url) => setState(() => _loaded = true),
-            onConsoleMessage: (controller, message) => debugPrint('WEBVIEW: ${message.message}'),
-            onLoadError: (controller, url, code, message) =>
-                debugPrint('LOAD ERROR: $message'),
           ),
           if (!_loaded)
             const Center(child: CircularProgressIndicator(color: Colors.red)),
