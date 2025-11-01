@@ -97,19 +97,11 @@ class _ToolsPageState extends State<ToolsPage> {
           // Tüm dosya erişim iznini kontrol et
           final hasPermission = await _checkAllFilesAccessPermission();
           if (hasPermission) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ToolWebView(
-                  toolName: title,
-                  htmlFile: htmlFile,
-                  dark: dark,
-                ),
-              ),
-            );
+            // İzin varsa direkt aç
+            _openToolPage(context, title, htmlFile);
           } else {
-            // İzin yoksa, izin iste
-            await _requestAllFilesAccessPermission(context);
+            // İzin yoksa, özel izin dialog göster
+            await _showAllFilesAccessDialog(context, title, htmlFile);
           }
         },
         child: Container(
@@ -151,7 +143,6 @@ class _ToolsPageState extends State<ToolsPage> {
 
   Future<bool> _checkAllFilesAccessPermission() async {
     try {
-      // Tüm dosya erişim iznini kontrol et
       final status = await Permission.manageExternalStorage.status;
       return status.isGranted;
     } catch (e) {
@@ -160,54 +151,129 @@ class _ToolsPageState extends State<ToolsPage> {
     }
   }
 
-  Future<void> _requestAllFilesAccessPermission(BuildContext context) async {
+  Future<void> _showAllFilesAccessDialog(BuildContext context, String title, String htmlFile) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false, // Kullanıcı dışarı tıklayamaz
+      builder: (context) => AlertDialog(
+        title: Column(
+          children: [
+            Icon(Icons.folder_open, size: 48, color: Colors.red),
+            const SizedBox(height: 10),
+            const Text(
+              'İzin Gerekli',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'PDF dosyalarınızı kaydetmek için "Tüm dosyalara erişim" iznine ihtiyacımız var.',
+              style: TextStyle(fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 15),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: const Text(
+                'Bu izin, PDF dosyalarınızı Download klasörüne kaydetmemize olanak tanır.',
+                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('VAZGEÇ'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.pop(context); // Dialog'u kapat
+              await _requestAllFilesAccessPermission(context, title, htmlFile);
+            },
+            child: const Text('İZİN VER'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _requestAllFilesAccessPermission(BuildContext context, String title, String htmlFile) async {
     try {
       // Tüm dosya erişim iznini iste
       final status = await Permission.manageExternalStorage.request();
       
       if (status.isGranted) {
         // İzin verildi, sayfayı aç
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ToolWebView(
-              toolName: 'PDF Birleştir', // Bu dynamic olmalı ama basit tutuyorum
-              htmlFile: 'merge.html',
-              dark: widget.dark,
-            ),
-          ),
-        );
+        _openToolPage(context, title, htmlFile);
       } else {
         // İzin reddedildi, ayarlara yönlendir
-        if (mounted) {
-          await showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Tüm Dosya Erişim İzni Gerekli'),
-              content: const Text(
-                'PDF dosyalarını Download klasörüne kaydetmek için "Tüm dosya erişim izni"ne ihtiyacımız var.\n\n'
-                'Lütfen ayarlardan "Bu uygulamaya tüm dosya erişimine izin ver" seçeneğini açın.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('İptal'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    openAppSettings();
-                  },
-                  child: const Text('Ayarlara Git'),
-                ),
-              ],
-            ),
-          );
-        }
+        await _showSettingsDialog(context, title, htmlFile);
       }
     } catch (e) {
       print('İzin isteme hatası: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('İzin istenirken bir hata oluştu'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
+  }
+
+  Future<void> _showSettingsDialog(BuildContext context, String title, String htmlFile) async {
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('İzin Gerekli'),
+        content: const Text(
+          'PDF dosyalarını kaydetmek için "Tüm dosyalara erişim" iznini vermeniz gerekiyor.\n\n'
+          'Lütfen ayarlardan bu izni etkinleştirin.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İPTAL'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              openAppSettings();
+            },
+            child: const Text('AYARLAR'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openToolPage(BuildContext context, String title, String htmlFile) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ToolWebView(
+          toolName: title,
+          htmlFile: htmlFile,
+          dark: widget.dark,
+        ),
+      ),
+    );
   }
 }
 
@@ -244,18 +310,26 @@ class _ToolWebViewState extends State<ToolWebView> {
 
   Future<void> _initializeDirectory() async {
     try {
-      // Downloads dizinini al
-      _downloadsDirectory = await getDownloadsDirectory();
+      // Tüm dosya erişim izni varsa Download klasörünü kullan
+      final hasPermission = await Permission.manageExternalStorage.isGranted;
       
-      // Android 10+ için Public Downloads klasörü (fallback)
-      if (_downloadsDirectory == null) {
-        _downloadsDirectory = Directory('/storage/emulated/0/Download');
+      if (hasPermission) {
+        _downloadsDirectory = await getDownloadsDirectory();
+        if (_downloadsDirectory == null) {
+          _downloadsDirectory = Directory('/storage/emulated/0/Download');
+        }
+        print('Downloads dizini kullanılıyor: ${_downloadsDirectory!.path}');
+      } else {
+        // İzin yoksa uygulama dizinine kaydet
+        _downloadsDirectory = await getApplicationDocumentsDirectory();
+        print('Uygulama dizini kullanılıyor: ${_downloadsDirectory!.path}');
       }
       
-      print('Downloads dizini: ${_downloadsDirectory!.path}');
+      if (!await _downloadsDirectory!.exists()) {
+        await _downloadsDirectory!.create(recursive: true);
+      }
     } catch (e) {
       print('Klasör hatası: $e');
-      // Fallback: Uygulama dizini
       _downloadsDirectory = await getApplicationDocumentsDirectory();
     }
   }
@@ -288,7 +362,6 @@ class _ToolWebViewState extends State<ToolWebView> {
           onWebViewCreated: (controller) {
             _controller = controller;
             
-            // Flutter handler'larını kaydet
             controller.addJavaScriptHandler(
               handlerName: 'saveFile',
               callback: (args) async {
@@ -333,18 +406,14 @@ class _ToolWebViewState extends State<ToolWebView> {
         await _initializeDirectory();
       }
 
-      // Base64 veriyi decode et
       final cleanBase64 = base64Data.replaceFirst(RegExp(r'^data:.*?base64,'), '');
       final bytes = base64.decode(cleanBase64);
       
-      // Benzersiz dosya adı oluştur
       final uniqueFileName = await _getUniqueFileName(fileName);
       final file = File('${_downloadsDirectory!.path}/$uniqueFileName');
       
-      // Dosyayı kaydet
       await file.writeAsBytes(bytes);
       
-      // Başarı mesajı göster
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -354,7 +423,7 @@ class _ToolWebViewState extends State<ToolWebView> {
               children: [
                 Text('✅ $uniqueFileName kaydedildi'),
                 Text(
-                  'Konum: Download klasörü',
+                  'Konum: ${_getLocationName()}',
                   style: TextStyle(fontSize: 12, color: Colors.grey[300]),
                 ),
               ],
@@ -392,11 +461,9 @@ class _ToolWebViewState extends State<ToolWebView> {
         await _initializeDirectory();
       }
 
-      // Base64 veriyi decode et
       final cleanBase64 = base64Data.replaceFirst(RegExp(r'^data:image\/[a-z]+;base64,'), '');
       final bytes = base64.decode(cleanBase64);
       
-      // Dosya uzantısını kontrol et
       String finalFileName = fileName;
       if (!fileName.toLowerCase().endsWith('.png') && 
           !fileName.toLowerCase().endsWith('.jpg') && 
@@ -404,14 +471,11 @@ class _ToolWebViewState extends State<ToolWebView> {
         finalFileName = '$fileName.png';
       }
       
-      // Benzersiz dosya adı oluştur
       final uniqueFileName = await _getUniqueFileName(finalFileName);
       final file = File('${_downloadsDirectory!.path}/$uniqueFileName');
       
-      // Dosyayı kaydet
       await file.writeAsBytes(bytes);
       
-      // Başarı mesajı göster
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -421,7 +485,7 @@ class _ToolWebViewState extends State<ToolWebView> {
               children: [
                 Text('✅ $uniqueFileName kaydedildi'),
                 Text(
-                  'Konum: Download klasörü',
+                  'Konum: ${_getLocationName()}',
                   style: TextStyle(fontSize: 12, color: Colors.grey[300]),
                 ),
               ],
@@ -453,6 +517,15 @@ class _ToolWebViewState extends State<ToolWebView> {
     }
   }
 
+  String _getLocationName() {
+    final path = _downloadsDirectory?.path ?? '';
+    if (path.contains('Download')) {
+      return 'Download klasörü';
+    } else {
+      return 'Uygulama klasörü';
+    }
+  }
+
   Future<String> _getUniqueFileName(String fileName) async {
     final file = File('${_downloadsDirectory!.path}/$fileName');
     
@@ -460,7 +533,6 @@ class _ToolWebViewState extends State<ToolWebView> {
       return fileName;
     }
     
-    // Dosya varsa, benzersiz isim oluştur
     final nameWithoutExt = fileName.replaceAll(RegExp(r'\.[^/.]+$'), '');
     final extension = fileName.substring(fileName.lastIndexOf('.'));
     
