@@ -1,6 +1,7 @@
 // lib/main.dart
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path/path.dart' as p;
@@ -721,6 +722,48 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // Yeni metod: Klasördeki öğe sayısını ve boyutunu hesapla
+  Future<Map<String, dynamic>> _getFolderItemCount(String folderPath) async {
+    try {
+      final directory = Directory(folderPath);
+      if (!await directory.exists()) {
+        return {'count': 0, 'size': '0 B'};
+      }
+
+      final entities = directory.listSync(recursive: true);
+      final files = entities.whereType<File>().toList();
+      final folders = entities.whereType<Directory>().toList();
+      
+      // Toplam dosya sayısı (PDF ve diğer dosyalar)
+      final totalItems = files.length + folders.length;
+      
+      // Toplam boyutu hesapla
+      int totalSize = 0;
+      for (final file in files) {
+        try {
+          totalSize += await file.length();
+        } catch (e) {
+          // Dosya boyutu alınamazsa görmezden gel
+        }
+      }
+      
+      // Boyutu formatla
+      String formatSize(int bytes) {
+        if (bytes <= 0) return "0 B";
+        const suffixes = ["B", "KB", "MB", "GB"];
+        final i = (log(bytes) / log(1024)).floor();
+        return '${(bytes / pow(1024, i)).toStringAsFixed(1)} ${suffixes[i]}';
+      }
+      
+      return {
+        'count': totalItems,
+        'size': formatSize(totalSize),
+      };
+    } catch (e) {
+      return {'count': 0, 'size': '0 B'};
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final files = _getCurrentList();
@@ -911,62 +954,78 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildPdfManagerPlusFolder() {
-    return ListTile(
-      leading: const Icon(Icons.folder_special, color: Colors.red),
-      title: const Text(
-        'PDF_Manager_Plus',
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          color: Colors.red,
-        ),
-      ),
-      subtitle: const Text('Uygulama Dosyaları • Özel Klasör'),
-      trailing: _selectionMode ? null : PopupMenuButton<String>(
-        icon: const Icon(Icons.more_vert),
-        onSelected: (value) {
-          if (value == 'open') {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _getFolderItemCount(_pdfManagerPlusDir!.path),
+      builder: (context, snapshot) {
+        final itemCount = snapshot.hasData ? snapshot.data!['count'] : 0;
+        final folderSize = snapshot.hasData ? snapshot.data!['size'] : '0 B';
+        
+        return ListTile(
+          leading: const Icon(Icons.folder_special, color: Colors.red),
+          title: const Text(
+            'PDF_Manager_Plus',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.red,
+            ),
+          ),
+          subtitle: Text('$itemCount öğe • $folderSize • Uygulama Dosyaları'),
+          trailing: _selectionMode ? null : PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'open') {
+                _enterFolder(_pdfManagerPlusDir!.path);
+              } else if (value == 'color') {
+                _changeFolderColor(_pdfManagerPlusDir!.path);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'open', child: Text('Aç')),
+              PopupMenuItem(value: 'color', child: Text('Renk Değiştir')),
+            ],
+          ),
+          onTap: () {
+            if (_selectionMode) return;
             _enterFolder(_pdfManagerPlusDir!.path);
-          } else if (value == 'color') {
-            _changeFolderColor(_pdfManagerPlusDir!.path);
-          }
-        },
-        itemBuilder: (_) => const [
-          PopupMenuItem(value: 'open', child: Text('Aç')),
-          PopupMenuItem(value: 'color', child: Text('Renk Değiştir')),
-        ],
-      ),
-      onTap: () {
-        if (_selectionMode) return;
-        _enterFolder(_pdfManagerPlusDir!.path);
+          },
+        );
       },
     );
   }
 
   Widget _buildFolderItem(String folderPath) {
-    return ListTile(
-      leading: Icon(Icons.folder, color: _getFolderColor(folderPath)),
-      title: Text(p.basename(folderPath)),
-      subtitle: const Text('Klasör'),
-      trailing: _selectionMode ? null : PopupMenuButton<String>(
-        icon: const Icon(Icons.more_vert),
-        onSelected: (value) {
-          if (value == 'rename') {
-            _renameFolder(folderPath);
-          } else if (value == 'color') {
-            _changeFolderColor(folderPath);
-          } else if (value == 'delete') {
-            _deleteFolder(folderPath);
-          }
-        },
-        itemBuilder: (_) => const [
-          PopupMenuItem(value: 'rename', child: Text('Yeniden Adlandır')),
-          PopupMenuItem(value: 'color', child: Text('Renk Değiştir')),
-          PopupMenuItem(value: 'delete', child: Text('Sil')),
-        ],
-      ),
-      onTap: () {
-        if (_selectionMode) return;
-        _enterFolder(folderPath);
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _getFolderItemCount(folderPath),
+      builder: (context, snapshot) {
+        final itemCount = snapshot.hasData ? snapshot.data!['count'] : 0;
+        final folderSize = snapshot.hasData ? snapshot.data!['size'] : '0 B';
+        
+        return ListTile(
+          leading: Icon(Icons.folder, color: _getFolderColor(folderPath)),
+          title: Text(p.basename(folderPath)),
+          subtitle: Text('$itemCount öğe • $folderSize'),
+          trailing: _selectionMode ? null : PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'rename') {
+                _renameFolder(folderPath);
+              } else if (value == 'color') {
+                _changeFolderColor(folderPath);
+              } else if (value == 'delete') {
+                _deleteFolder(folderPath);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'rename', child: Text('Yeniden Adlandır')),
+              PopupMenuItem(value: 'color', child: Text('Renk Değiştir')),
+              PopupMenuItem(value: 'delete', child: Text('Sil')),
+            ],
+          ),
+          onTap: () {
+            if (_selectionMode) return;
+            _enterFolder(folderPath);
+          },
+        );
       },
     );
   }
