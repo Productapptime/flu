@@ -72,10 +72,12 @@ class _HomePageState extends State<HomePage> {
   bool _selectionMode = false;
   List<String> _selectedFiles = [];
   List<String> _allFiles = [];
+  List<String> _folders = [];
   List<String> _favorites = [];
   List<String> _recent = [];
   String _searchQuery = '';
   String _sortMode = 'Name';
+  String? _currentPath;
   Directory? _baseDir;
 
   @override
@@ -86,22 +88,31 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _initDir() async {
     _baseDir = await getApplicationDocumentsDirectory();
+    _currentPath = _baseDir!.path;
     await _loadLists();
-    await _scanAllFiles();
+    await _scanFilesAndFolders();
   }
 
-  Future<void> _scanAllFiles() async {
-    if (_baseDir == null) return;
+  Future<void> _scanFilesAndFolders() async {
+    if (_currentPath == null) return;
+    
     final List<String> pdfPaths = [];
-    final dir = Directory(_baseDir!.path);
-    final entities = dir.listSync(recursive: true);
+    final List<String> folderPaths = [];
+    
+    final dir = Directory(_currentPath!);
+    final entities = dir.listSync();
+    
     for (var e in entities) {
       if (e is File && e.path.toLowerCase().endsWith('.pdf')) {
         pdfPaths.add(e.path);
+      } else if (e is Directory) {
+        folderPaths.add(e.path);
       }
     }
+    
     setState(() {
       _allFiles = pdfPaths;
+      _folders = folderPaths;
     });
   }
 
@@ -127,9 +138,9 @@ class _HomePageState extends State<HomePage> {
     if (res != null && res.files.single.path != null) {
       final path = res.files.single.path!;
       final imported = File(path);
-      final newPath = p.join(_baseDir!.path, p.basename(path));
+      final newPath = p.join(_currentPath!, p.basename(path));
       await imported.copy(newPath);
-      await _scanAllFiles();
+      await _scanFilesAndFolders();
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('File imported successfully')));
     }
@@ -161,6 +172,129 @@ class _HomePageState extends State<HomePage> {
     }
     await _saveLists();
     setState(() {});
+  }
+
+  Future<void> _renameFile(String oldPath) async {
+    final controller = TextEditingController(text: p.basenameWithoutExtension(oldPath));
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Rename File'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'New file name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newName = controller.text.trim();
+              if (newName.isEmpty) return;
+              
+              final newPath = p.join(p.dirname(oldPath), '$newName.pdf');
+              await File(oldPath).rename(newPath);
+              
+              // Update favorites and recent if file was moved
+              if (_favorites.contains(oldPath)) {
+                _favorites.remove(oldPath);
+                _favorites.add(newPath);
+              }
+              if (_recent.contains(oldPath)) {
+                _recent.remove(oldPath);
+                _recent.add(newPath);
+              }
+              await _saveLists();
+              await _scanFilesAndFolders();
+              
+              if (mounted) Navigator.pop(context);
+            },
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _moveFile(String filePath) async {
+    final allFolders = await _getAllFolders();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Move File'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: ListView.builder(
+            itemCount: allFolders.length,
+            itemBuilder: (_, index) {
+              final folder = allFolders[index];
+              return ListTile(
+                leading: const Icon(Icons.folder),
+                title: Text(p.relative(folder, from: _baseDir!.path)),
+                onTap: () async {
+                  final fileName = p.basename(filePath);
+                  final newPath = p.join(folder, fileName);
+                  
+                  await File(filePath).rename(newPath);
+                  
+                  // Update favorites and recent with new path
+                  if (_favorites.contains(filePath)) {
+                    _favorites.remove(filePath);
+                    _favorites.add(newPath);
+                  }
+                  if (_recent.contains(filePath)) {
+                    _recent.remove(filePath);
+                    _recent.add(newPath);
+                  }
+                  await _saveLists();
+                  await _scanFilesAndFolders();
+                  
+                  if (mounted) Navigator.pop(context);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<List<String>> _getAllFolders() async {
+    final List<String> folders = [];
+    final dir = Directory(_baseDir!.path);
+    
+    await for (var entity in dir.list(recursive: true)) {
+      if (entity is Directory) {
+        folders.add(entity.path);
+      }
+    }
+    
+    return folders;
+  }
+
+  void _enterFolder(String folderPath) {
+    setState(() {
+      _currentPath = folderPath;
+    });
+    _scanFilesAndFolders();
+  }
+
+  void _goBack() {
+    if (_currentPath != _baseDir!.path) {
+      setState(() {
+        _currentPath = p.dirname(_currentPath!);
+      });
+      _scanFilesAndFolders();
+    }
   }
 
   List<String> _getCurrentList() {
@@ -220,14 +354,14 @@ class _HomePageState extends State<HomePage> {
           ElevatedButton(
             onPressed: () async {
               final name = controller.text.trim();
-              if (name.isEmpty || _baseDir == null) return;
-              final newFolder = Directory(p.join(_baseDir!.path, name));
+              if (name.isEmpty || _currentPath == null) return;
+              final newFolder = Directory(p.join(_currentPath!, name));
               if (!(await newFolder.exists())) {
                 await newFolder.create(recursive: true);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Folder "$name" created')),
                 );
-                await _scanAllFiles();
+                await _scanFilesAndFolders();
               }
               if (mounted) Navigator.pop(context);
             },
@@ -245,8 +379,23 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(titles[_selectedIndex]),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(titles[_selectedIndex]),
+            if (_selectedIndex == 0 && _currentPath != _baseDir!.path)
+              Text(
+                p.relative(_currentPath!, from: _baseDir!.path),
+                style: const TextStyle(fontSize: 12),
+              ),
+          ],
+        ),
         actions: [
+          if (_selectedIndex == 0 && _currentPath != _baseDir!.path)
+            IconButton(
+              icon: const Icon(Icons.arrow_upward),
+              onPressed: _goBack,
+            ),
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () async {
@@ -257,10 +406,11 @@ class _HomePageState extends State<HomePage> {
               if (text != null) setState(() => _searchQuery = text);
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.create_new_folder_outlined),
-            onPressed: _createFolder,
-          ),
+          if (_selectedIndex == 0)
+            IconButton(
+              icon: const Icon(Icons.create_new_folder_outlined),
+              onPressed: _createFolder,
+            ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.sort),
             onSelected: (val) => setState(() => _sortMode = val),
@@ -316,40 +466,7 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-      body: ListView.builder(
-        itemCount: files.length,
-        itemBuilder: (_, i) {
-          final f = File(files[i]);
-          final sizeMb = (f.lengthSync() / 1024 / 1024).toStringAsFixed(2);
-          final modified =
-              DateFormat('dd.MM.yyyy HH:mm').format(f.lastModifiedSync());
-          return ListTile(
-            leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-            title: Text(p.basename(files[i])),
-            subtitle: Text('$sizeMb MB • $modified'),
-            trailing: IconButton(
-              icon: Icon(
-                _favorites.contains(files[i])
-                    ? Icons.favorite
-                    : Icons.favorite_border,
-                color: Colors.red,
-              ),
-              onPressed: () => _toggleFavorite(files[i]),
-            ),
-            onTap: () {
-              if (_selectionMode) {
-                setState(() {
-                  _selectedFiles.contains(files[i])
-                      ? _selectedFiles.remove(files[i])
-                      : _selectedFiles.add(files[i]);
-                });
-              } else {
-                _openViewer(files[i]);
-              }
-            },
-          );
-        },
-      ),
+      body: _selectedIndex == 0 ? _buildAllFilesView(files) : _buildListView(files),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         selectedItemColor: Colors.red,
@@ -362,6 +479,82 @@ class _HomePageState extends State<HomePage> {
           BottomNavigationBarItem(icon: Icon(Icons.build), label: 'Tools'),
         ],
       ),
+    );
+  }
+
+  Widget _buildAllFilesView(List<String> files) {
+    return ListView(
+      children: [
+        // Folders section
+        ..._folders.map((folderPath) => ListTile(
+          leading: const Icon(Icons.folder, color: Colors.amber),
+          title: Text(p.basename(folderPath)),
+          subtitle: const Text('Folder'),
+          onTap: () => _enterFolder(folderPath),
+        )),
+        
+        // Files section
+        ...files.map((filePath) => _buildFileItem(filePath)),
+      ],
+    );
+  }
+
+  Widget _buildListView(List<String> files) {
+    return ListView.builder(
+      itemCount: files.length,
+      itemBuilder: (_, i) => _buildFileItem(files[i]),
+    );
+  }
+
+  Widget _buildFileItem(String filePath) {
+    final f = File(filePath);
+    final sizeMb = (f.lengthSync() / 1024 / 1024).toStringAsFixed(2);
+    final modified =
+        DateFormat('dd.MM.yyyy HH:mm').format(f.lastModifiedSync());
+    
+    return ListTile(
+      leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+      title: Text(p.basename(filePath)),
+      subtitle: Text('$sizeMb MB • $modified'),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: Icon(
+              _favorites.contains(filePath)
+                  ? Icons.favorite
+                  : Icons.favorite_border,
+              color: Colors.red,
+            ),
+            onPressed: () => _toggleFavorite(filePath),
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'rename') {
+                _renameFile(filePath);
+              } else if (value == 'move') {
+                _moveFile(filePath);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'rename', child: Text('Rename')),
+              PopupMenuItem(value: 'move', child: Text('Move')),
+            ],
+          ),
+        ],
+      ),
+      onTap: () {
+        if (_selectionMode) {
+          setState(() {
+            _selectedFiles.contains(filePath)
+                ? _selectedFiles.remove(filePath)
+                : _selectedFiles.add(filePath);
+          });
+        } else {
+          _openViewer(filePath);
+        }
+      },
     );
   }
 }
