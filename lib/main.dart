@@ -297,6 +297,82 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _deleteSelectedFiles() async {
+    if (_selectedFiles.isEmpty) return;
+    
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Files'),
+        content: Text('Are you sure you want to delete ${_selectedFiles.length} file(s)?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              for (String path in _selectedFiles) {
+                final file = File(path);
+                if (await file.exists()) {
+                  await file.delete();
+                  
+                  // Remove from favorites and recent
+                  if (_favorites.contains(path)) {
+                    _favorites.remove(path);
+                  }
+                  if (_recent.contains(path)) {
+                    _recent.remove(path);
+                  }
+                }
+              }
+              
+              await _saveLists();
+              await _scanFilesAndFolders();
+              setState(() {
+                _selectedFiles.clear();
+                _selectionMode = false;
+              });
+              
+              if (mounted) Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('${_selectedFiles.length} file(s) deleted')),
+              );
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _shareSelectedFiles() async {
+    if (_selectedFiles.isEmpty) return;
+    
+    final xFiles = _selectedFiles.map((path) => XFile(path)).toList();
+    await Share.shareXFiles(xFiles);
+  }
+
+  Future<void> _printSelectedFiles() async {
+    if (_selectedFiles.isEmpty) return;
+    
+    for (String path in _selectedFiles) {
+      final bytes = await File(path).readAsBytes();
+      await Printing.layoutPdf(onLayout: (_) => bytes);
+    }
+  }
+
+  void _selectAllFiles() {
+    setState(() {
+      if (_selectedFiles.length == _allFiles.length) {
+        _selectedFiles.clear();
+      } else {
+        _selectedFiles = List.from(_allFiles);
+      }
+    });
+  }
+
   List<String> _getCurrentList() {
     List<String> base;
     switch (_selectedIndex) {
@@ -396,6 +472,8 @@ class _HomePageState extends State<HomePage> {
               icon: const Icon(Icons.arrow_upward),
               onPressed: _goBack,
             ),
+          
+          // Search Icon
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () async {
@@ -406,11 +484,15 @@ class _HomePageState extends State<HomePage> {
               if (text != null) setState(() => _searchQuery = text);
             },
           ),
+          
+          // Create Folder Icon (only in All Files)
           if (_selectedIndex == 0)
             IconButton(
               icon: const Icon(Icons.create_new_folder_outlined),
               onPressed: _createFolder,
             ),
+          
+          // Sort Icon
           PopupMenuButton<String>(
             icon: const Icon(Icons.sort),
             onSelected: (val) => setState(() => _sortMode = val),
@@ -420,13 +502,51 @@ class _HomePageState extends State<HomePage> {
               PopupMenuItem(value: 'Date', child: Text('Sort by Date')),
             ],
           ),
+          
+          // Selection Mode Icons
+          if (_selectionMode && _selectedFiles.isNotEmpty) ...[
+            // Share selected files
+            IconButton(
+              icon: const Icon(Icons.share),
+              onPressed: _shareSelectedFiles,
+            ),
+            // Print selected files
+            IconButton(
+              icon: const Icon(Icons.print),
+              onPressed: _printSelectedFiles,
+            ),
+            // Delete selected files
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: _deleteSelectedFiles,
+            ),
+          ],
+          
+          // Select All / Selection Mode Toggle
           IconButton(
             icon: Icon(
-              _selectionMode ? Icons.close : Icons.select_all_outlined,
+              _selectionMode ? 
+                (_selectedFiles.length == _allFiles.length ? Icons.deselect : Icons.select_all) 
+                : Icons.select_all_outlined,
             ),
-            onPressed: () =>
-                setState(() => _selectionMode = !_selectionMode),
+            onPressed: () {
+              if (_selectionMode) {
+                _selectAllFiles();
+              } else {
+                setState(() => _selectionMode = true);
+              }
+            },
           ),
+          
+          // Close selection mode
+          if (_selectionMode)
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => setState(() {
+                _selectionMode = false;
+                _selectedFiles.clear();
+              }),
+            ),
         ],
       ),
       drawer: Drawer(
@@ -471,7 +591,13 @@ class _HomePageState extends State<HomePage> {
         currentIndex: _selectedIndex,
         selectedItemColor: Colors.red,
         unselectedItemColor: Colors.grey,
-        onTap: (i) => setState(() => _selectedIndex = i),
+        onTap: (i) {
+          setState(() {
+            _selectedIndex = i;
+            _selectionMode = false;
+            _selectedFiles.clear();
+          });
+        },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'All'),
           BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Recent'),
@@ -513,10 +639,23 @@ class _HomePageState extends State<HomePage> {
         DateFormat('dd.MM.yyyy HH:mm').format(f.lastModifiedSync());
     
     return ListTile(
-      leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+      leading: _selectionMode 
+          ? Checkbox(
+              value: _selectedFiles.contains(filePath),
+              onChanged: (bool? value) {
+                setState(() {
+                  if (value == true) {
+                    _selectedFiles.add(filePath);
+                  } else {
+                    _selectedFiles.remove(filePath);
+                  }
+                });
+              },
+            )
+          : const Icon(Icons.picture_as_pdf, color: Colors.red),
       title: Text(p.basename(filePath)),
       subtitle: Text('$sizeMb MB • $modified'),
-      trailing: Row(
+      trailing: _selectionMode ? null : Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
@@ -554,6 +693,12 @@ class _HomePageState extends State<HomePage> {
         } else {
           _openViewer(filePath);
         }
+      },
+      onLongPress: () {
+        setState(() {
+          _selectionMode = true;
+          _selectedFiles.add(filePath);
+        });
       },
     );
   }
