@@ -160,7 +160,7 @@ class _ToolsPageState extends State<ToolsPage> {
           children: [
             Icon(Icons.folder_open, size: 48, color: Colors.red),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'İzin Gerekli',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
@@ -170,7 +170,7 @@ class _ToolsPageState extends State<ToolsPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'PDF dosyalarınızı kaydetmek için "Tüm dosyalara erişim" iznine ihtiyacımız var.',
               style: TextStyle(fontSize: 16),
               textAlign: TextAlign.center,
@@ -183,7 +183,7 @@ class _ToolsPageState extends State<ToolsPage> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.grey[300]!),
               ),
-              child: const Text(
+              child: Text(
                 'Bu izin, PDF dosyalarınızı Download klasörüne kaydetmemize olanak tanır.',
                 style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                 textAlign: TextAlign.center,
@@ -194,7 +194,7 @@ class _ToolsPageState extends State<ToolsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('VAZGEÇ'),
+            child: Text('VAZGEÇ'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -205,7 +205,7 @@ class _ToolsPageState extends State<ToolsPage> {
               Navigator.pop(context); // Dialog'u kapat
               await _requestAllFilesAccessPermission(context, title, htmlFile);
             },
-            child: const Text('İZİN VER'),
+            child: Text('İZİN VER'),
           ),
         ],
       ),
@@ -228,7 +228,7 @@ class _ToolsPageState extends State<ToolsPage> {
       print('İzin isteme hatası: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('İzin istenirken bir hata oluştu'),
             backgroundColor: Colors.red,
           ),
@@ -241,22 +241,22 @@ class _ToolsPageState extends State<ToolsPage> {
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('İzin Gerekli'),
-        content: const Text(
+        title: Text('İzin Gerekli'),
+        content: Text(
           'PDF dosyalarını kaydetmek için "Tüm dosyalara erişim" iznini vermeniz gerekiyor.\n\n'
           'Lütfen ayarlardan bu izni etkinleştirin.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('İPTAL'),
+            child: Text('İPTAL'),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               openAppSettings();
             },
-            child: const Text('AYARLAR'),
+            child: Text('AYARLAR'),
           ),
         ],
       ),
@@ -393,7 +393,7 @@ class _ToolWebViewState extends State<ToolWebView> {
           },
         ),
         if (!_loaded)
-          const Center(
+          Center(
             child: CircularProgressIndicator(color: Colors.red),
           ),
       ],
@@ -429,7 +429,7 @@ class _ToolWebViewState extends State<ToolWebView> {
               ],
             ),
             backgroundColor: Colors.green,
-            duration: const Duration(seconds: 5),
+            duration: Duration(seconds: 5),
             action: SnackBarAction(
               label: 'AÇ',
               textColor: Colors.white,
@@ -448,7 +448,7 @@ class _ToolWebViewState extends State<ToolWebView> {
           SnackBar(
             content: Text('❌ Dosya kaydedilemedi: ${e.toString()}'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
+            duration: Duration(seconds: 5),
           ),
         );
       }
@@ -491,7 +491,7 @@ class _ToolWebViewState extends State<ToolWebView> {
               ],
             ),
             backgroundColor: Colors.green,
-            duration: const Duration(seconds: 5),
+            duration: Duration(seconds: 5),
             action: SnackBarAction(
               label: 'AÇ',
               textColor: Colors.white,
@@ -510,7 +510,7 @@ class _ToolWebViewState extends State<ToolWebView> {
           SnackBar(
             content: Text('❌ Görsel kaydedilemedi: ${e.toString()}'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
+            duration: Duration(seconds: 5),
           ),
         );
       }
