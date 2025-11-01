@@ -1,4 +1,5 @@
 // lib/main.dart
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -9,7 +10,7 @@ import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
-import 'tools.dart'; // Tools sayfasını import ediyoruz
+import 'tools.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,6 +82,7 @@ class _HomePageState extends State<HomePage> {
   String? _currentPath;
   Directory? _baseDir;
   Map<String, Color> _folderColors = {};
+  Directory? _pdfManagerPlusDir;
 
   @override
   void initState() {
@@ -91,6 +93,13 @@ class _HomePageState extends State<HomePage> {
   Future<void> _initDir() async {
     _baseDir = await getApplicationDocumentsDirectory();
     _currentPath = _baseDir!.path;
+    
+    // PDF_Manager_Plus klasörünü oluştur
+    _pdfManagerPlusDir = Directory('${_baseDir!.path}/PDF_Manager_Plus');
+    if (!await _pdfManagerPlusDir!.exists()) {
+      await _pdfManagerPlusDir!.create(recursive: true);
+    }
+    
     await _loadLists();
     await _scanFilesAndFolders();
   }
@@ -109,6 +118,13 @@ class _HomePageState extends State<HomePage> {
         pdfPaths.add(e.path);
       } else if (e is Directory) {
         folderPaths.add(e.path);
+      }
+    }
+    
+    // PDF_Manager_Plus klasörünü her zaman ekle
+    if (_pdfManagerPlusDir != null && await _pdfManagerPlusDir!.exists()) {
+      if (!folderPaths.contains(_pdfManagerPlusDir!.path)) {
+        folderPaths.add(_pdfManagerPlusDir!.path);
       }
     }
     
@@ -132,6 +148,11 @@ class _HomePageState extends State<HomePage> {
         if (i < colorValues.length) {
           _folderColors[colorKeys[i]] = Color(int.parse(colorValues[i]));
         }
+      }
+      
+      // PDF_Manager_Plus klasörüne özel renk ata
+      if (_pdfManagerPlusDir != null && !_folderColors.containsKey(_pdfManagerPlusDir!.path)) {
+        _folderColors[_pdfManagerPlusDir!.path] = Colors.red;
       }
     });
   }
@@ -247,6 +268,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _renameFolder(String folderPath) async {
+    // PDF_Manager_Plus klasörünü yeniden adlandıramaz
+    if (folderPath == _pdfManagerPlusDir?.path) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PDF_Manager_Plus klasörü yeniden adlandırılamaz')),
+      );
+      return;
+    }
+
     final controller = TextEditingController(text: p.basename(folderPath));
     showDialog(
       context: context,
@@ -305,10 +334,18 @@ class _HomePageState extends State<HomePage> {
             itemBuilder: (_, index) {
               final folder = foldersWithRoot[index];
               final isRoot = folder == _baseDir!.path;
+              final isPdfManagerPlus = folder == _pdfManagerPlusDir?.path;
               return ListTile(
-                leading: Icon(isRoot ? Icons.home : Icons.folder, color: isRoot ? Colors.blue : _getFolderColor(folder)),
-                title: Text(isRoot ? 'All Files (Root)' : p.relative(folder, from: _baseDir!.path)),
-                subtitle: isRoot ? const Text('Move to main directory') : null,
+                leading: Icon(
+                  isRoot ? Icons.home : (isPdfManagerPlus ? Icons.folder_special : Icons.folder), 
+                  color: isRoot ? Colors.blue : (isPdfManagerPlus ? Colors.red : _getFolderColor(folder))
+                ),
+                title: Text(
+                  isRoot ? 'All Files (Root)' : 
+                  (isPdfManagerPlus ? 'PDF_Manager_Plus' : p.relative(folder, from: _baseDir!.path))
+                ),
+                subtitle: isRoot ? const Text('Move to main directory') : 
+                         (isPdfManagerPlus ? const Text('Uygulama Dosyaları') : null),
                 onTap: () async {
                   final fileName = p.basename(filePath);
                   final newPath = p.join(folder, fileName);
@@ -421,6 +458,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _deleteFolder(String folderPath) async {
+    // PDF_Manager_Plus klasörünü silemez
+    if (folderPath == _pdfManagerPlusDir?.path) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PDF_Manager_Plus klasörü silinemez')),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -842,40 +887,87 @@ class _HomePageState extends State<HomePage> {
   Widget _buildAllFilesView(List<String> files) {
     return ListView(
       children: [
-        // Folders section
-        ..._folders.map((folderPath) => ListTile(
-          leading: Icon(Icons.folder, color: _getFolderColor(folderPath)),
-          title: Text(p.basename(folderPath)),
-          subtitle: const Text('Folder'),
-          trailing: _selectionMode ? null : PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            onSelected: (value) {
-              if (value == 'rename') {
-                _renameFolder(folderPath);
-              } else if (value == 'color') {
-                _changeFolderColor(folderPath);
-              } else if (value == 'delete') {
-                _deleteFolder(folderPath);
+        // Özel PDF_Manager_Plus klasörü (her zaman ilk sırada)
+        if (_pdfManagerPlusDir != null)
+          FutureBuilder<bool>(
+            future: _pdfManagerPlusDir!.exists(),
+            builder: (context, snapshot) {
+              if (snapshot.hasData && snapshot.data == true) {
+                return _buildPdfManagerPlusFolder();
               }
+              return const SizedBox.shrink();
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'rename', child: Text('Rename')),
-              PopupMenuItem(value: 'color', child: Text('Change Color')),
-              PopupMenuItem(value: 'delete', child: Text('Delete')),
-            ],
           ),
-          onTap: () {
-            if (_selectionMode) {
-              // Klasörler seçim modunda seçilemez, sadece dosyalar seçilebilir
-              return;
-            }
-            _enterFolder(folderPath);
-          },
-        )),
         
-        // Files section
+        // Diğer klasörler
+        ..._folders
+            .where((folderPath) => folderPath != _pdfManagerPlusDir?.path)
+            .map((folderPath) => _buildFolderItem(folderPath)),
+        
+        // Dosyalar
         ...files.map((filePath) => _buildFileItem(filePath)),
       ],
+    );
+  }
+
+  Widget _buildPdfManagerPlusFolder() {
+    return ListTile(
+      leading: const Icon(Icons.folder_special, color: Colors.red),
+      title: const Text(
+        'PDF_Manager_Plus',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Colors.red,
+        ),
+      ),
+      subtitle: const Text('Uygulama Dosyaları • Özel Klasör'),
+      trailing: _selectionMode ? null : PopupMenuButton<String>(
+        icon: const Icon(Icons.more_vert),
+        onSelected: (value) {
+          if (value == 'open') {
+            _enterFolder(_pdfManagerPlusDir!.path);
+          } else if (value == 'color') {
+            _changeFolderColor(_pdfManagerPlusDir!.path);
+          }
+        },
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: 'open', child: Text('Aç')),
+          PopupMenuItem(value: 'color', child: Text('Renk Değiştir')),
+        ],
+      ),
+      onTap: () {
+        if (_selectionMode) return;
+        _enterFolder(_pdfManagerPlusDir!.path);
+      },
+    );
+  }
+
+  Widget _buildFolderItem(String folderPath) {
+    return ListTile(
+      leading: Icon(Icons.folder, color: _getFolderColor(folderPath)),
+      title: Text(p.basename(folderPath)),
+      subtitle: const Text('Klasör'),
+      trailing: _selectionMode ? null : PopupMenuButton<String>(
+        icon: const Icon(Icons.more_vert),
+        onSelected: (value) {
+          if (value == 'rename') {
+            _renameFolder(folderPath);
+          } else if (value == 'color') {
+            _changeFolderColor(folderPath);
+          } else if (value == 'delete') {
+            _deleteFolder(folderPath);
+          }
+        },
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: 'rename', child: Text('Yeniden Adlandır')),
+          PopupMenuItem(value: 'color', child: Text('Renk Değiştir')),
+          PopupMenuItem(value: 'delete', child: Text('Sil')),
+        ],
+      ),
+      onTap: () {
+        if (_selectionMode) return;
+        _enterFolder(folderPath);
+      },
     );
   }
 
