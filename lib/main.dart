@@ -9,6 +9,7 @@ import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
+import 'tools.dart'; // Tools sayfasını import ediyoruz
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -610,6 +611,8 @@ class _HomePageState extends State<HomePage> {
       case 2:
         base = _favorites;
         break;
+      case 3:
+        return []; // Tools sayfasında liste göstermiyoruz
       default:
         base = [];
     }
@@ -736,7 +739,9 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-      body: _selectedIndex == 0 ? _buildAllFilesView(files) : _buildListView(files),
+      body: _selectedIndex == 3 
+          ? ToolsPage(dark: widget.dark) // Tools sekmesi için yeni sayfa
+          : (_selectedIndex == 0 ? _buildAllFilesView(files) : _buildListView(files)),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         selectedItemColor: Colors.red,
@@ -761,6 +766,7 @@ class _HomePageState extends State<HomePage> {
   List<Widget> _buildNormalModeActions() {
     return [
       // Search Icon
+      if (_selectedIndex != 3) // Tools sayfasında arama gösterme
       IconButton(
         icon: const Icon(Icons.search),
         onPressed: () async {
@@ -779,7 +785,8 @@ class _HomePageState extends State<HomePage> {
           onPressed: _createFolder,
         ),
       
-      // Sort Icon
+      // Sort Icon (Tools sayfasında gösterme)
+      if (_selectedIndex != 3)
       PopupMenuButton<String>(
         icon: const Icon(Icons.sort),
         onSelected: (val) => setState(() => _sortMode = val),
@@ -790,7 +797,8 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       
-      // Selection Mode Toggle
+      // Selection Mode Toggle (Tools sayfasında gösterme)
+      if (_selectedIndex != 3)
       IconButton(
         icon: const Icon(Icons.select_all_outlined),
         onPressed: () => setState(() => _selectionMode = true),
