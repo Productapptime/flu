@@ -175,10 +175,10 @@ class _ToolWebViewState extends State<ToolWebView> {
 
   Future<void> _initializeAppDirectory() async {
     try {
-      // Uygulamanın documents directory'sini al
-      final directory = await getApplicationDocumentsDirectory();
+      // Download klasörünü al
+      final downloadsDir = await getDownloadsDirectory();
       // PDF_Manager_Plus klasörü oluştur
-      _appDocumentsDirectory = Directory('${directory.path}/PDF_Manager_Plus');
+      _appDocumentsDirectory = Directory('${downloadsDir!.path}/PDF_Manager_Plus');
       if (!await _appDocumentsDirectory!.exists()) {
         await _appDocumentsDirectory!.create(recursive: true);
       }
@@ -285,7 +285,7 @@ class _ToolWebViewState extends State<ToolWebView> {
               children: [
                 Text('✅ $fileName kaydedildi'),
                 Text(
-                  'Konum: PDF_Manager_Plus klasörü',
+                  'Konum: Download/PDF_Manager_Plus klasörü',
                   style: TextStyle(fontSize: 12, color: Colors.grey[300]),
                 ),
               ],
@@ -337,7 +337,7 @@ class _ToolWebViewState extends State<ToolWebView> {
               children: [
                 Text('✅ $fileName kaydedildi'),
                 Text(
-                  'Konum: PDF_Manager_Plus klasörü',
+                  'Konum: Download/PDF_Manager_Plus klasörü',
                   style: TextStyle(fontSize: 12, color: Colors.grey[300]),
                 ),
               ],
@@ -388,7 +388,7 @@ class _ToolWebViewState extends State<ToolWebView> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('📁 PDF_Manager_Plus Klasörü'),
+        title: const Text('📁 Download/PDF_Manager_Plus Klasörü'),
         content: SizedBox(
           width: double.maxFinite,
           height: 300,
