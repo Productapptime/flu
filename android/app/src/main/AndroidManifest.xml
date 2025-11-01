@@ -36,20 +36,24 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- 📁 Dosya seçici intent filter -->
+            <!-- 📁 PDF dosyalarını açmak için intent filter -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:mimeType="application/pdf" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
             </intent-filter>
 
-            <!-- 🔐 Tüm dosya erişimi için intent filter -->
+            <!-- 📸 Görselleri açmak için intent filter -->
             <intent-filter>
-                <action android:name="android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION" />
+                <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="package" android:path="com.example.hello_flutter" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="image/*" />
             </intent-filter>
+
         </activity>
 
         <!-- Flutter plugin kayıt metası -->
@@ -61,6 +65,18 @@
 
     <!-- 🔍 Gereken intent sorguları -->
     <queries>
+        <!-- Dosya yöneticisi ve uygulamalar için -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="*/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.CREATE_DOCUMENT" />
+        </intent>
+        <!-- Metin işleme için -->
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />
             <data android:mimeType="text/plain" />
