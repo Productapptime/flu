@@ -27,6 +27,7 @@ dependencies:
   permission_handler: ^11.0.1  # İzin yönetimi için
   path_provider: ^2.1.1       # Dosya yolu yönetimi
   intl: ^0.19.0
+  open_file: ^3.5.10
 
 dev_dependencies:
   flutter_test:
