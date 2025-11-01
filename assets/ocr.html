@@ -130,6 +130,12 @@
             color: white;
             border-color: #d32f2f;
         }
+        .save-btn {
+            background: #28a745;
+        }
+        .save-btn:hover {
+            background: #218838;
+        }
     </style>
 </head>
 <body>
@@ -160,7 +166,10 @@
                 <canvas id="canvas" style="display: none;"></canvas>
             </div>
 
-            <button id="ocrBtn" disabled>Metni Çıkar ve Kaydet</button>
+            <div class="controls">
+                <button id="ocrBtn" disabled>Metni Çıkar</button>
+                <button id="saveBtn" class="save-btn" disabled>Metni Kaydet</button>
+            </div>
             <div id="ocrStatus" class="status">Henüz işlem yapılmadı...</div>
         </div>
         
@@ -175,6 +184,7 @@
 
         let selectedImage = null;
         let currentFileType = 'image';
+        let extractedText = '';
 
         const fileTypeBtns = document.querySelectorAll('.file-type-btn');
         const imageSection = document.getElementById('imageSection');
@@ -185,6 +195,7 @@
         const preview = document.getElementById('preview');
         const canvas = document.getElementById('canvas');
         const ocrBtn = document.getElementById('ocrBtn');
+        const saveBtn = document.getElementById('saveBtn');
         const ocrStatus = document.getElementById('ocrStatus');
         const ocrOutput = document.getElementById('ocrOutput');
 
@@ -194,8 +205,33 @@
         }
 
         function updateProgress(percent) {
-            // Progress bar güncelleme
             showStatus(`İşlem devam ediyor: %${percent}`, 'info');
+        }
+
+        // Metin kaydetme fonksiyonu
+        function saveTextToFlutter(text, fileName) {
+            if (window.flutter_inappwebview) {
+                // Metni base64'e çevir
+                const base64Text = btoa(unescape(encodeURIComponent(text)));
+                
+                window.flutter_inappwebview.callHandler('saveText', fileName, base64Text)
+                    .then(function(response) {
+                        console.log('Metin kaydetme başarılı:', response);
+                        showStatus('✅ ' + fileName + ' kaydedildi!', 'success');
+                    })
+                    .catch(function(error) {
+                        console.error('Metin kaydetme hatası:', error);
+                        showStatus('❌ ' + fileName + ' kaydedilemedi!', 'error');
+                    });
+            } else {
+                // Fallback: Tarayıcı indirme
+                const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = fileName;
+                link.click();
+                showStatus('📥 ' + fileName + ' tarayıcıya indirildi!', 'info');
+            }
         }
 
         // Dosya türü değiştirme
@@ -228,6 +264,7 @@
                 preview.style.display = 'block';
                 selectedImage = preview.src;
                 ocrBtn.disabled = false;
+                saveBtn.disabled = true;
                 showStatus('✅ Görsel hazır, metni çıkarabilirsiniz.', 'success');
             };
             reader.readAsDataURL(file);
@@ -282,6 +319,7 @@
                 preview.style.display = 'block';
                 selectedImage = preview.src;
                 ocrBtn.disabled = false;
+                saveBtn.disabled = true;
                 showStatus('✅ Sayfa hazır, metni çıkarabilirsiniz.', 'success');
                 
             } catch (error) {
@@ -292,14 +330,28 @@
         function resetForm() {
             preview.style.display = 'none';
             ocrBtn.disabled = true;
+            saveBtn.disabled = true;
             ocrOutput.textContent = 'Henüz OCR yapılmadı...';
             showStatus('Henüz işlem yapılmadı...', 'info');
             selectedImage = null;
+            extractedText = '';
             imageInput.value = '';
             pdfInput.value = '';
             pdfPageSelect.style.display = 'none';
             pdfPageSelect.innerHTML = '<option value="">Sayfa seçin</option>';
         }
+
+        // Metin kaydetme butonu
+        saveBtn.addEventListener('click', () => {
+            if (!extractedText) {
+                showStatus('Önce metin çıkarın!', 'error');
+                return;
+            }
+
+            const timestamp = new Date().getTime();
+            const fileName = `ocr_metin_${timestamp}.txt`;
+            saveTextToFlutter(extractedText, fileName);
+        });
 
         // OCR işlemi
         ocrBtn.addEventListener('click', async () => {
@@ -311,6 +363,7 @@
             try {
                 showStatus('⏳ OCR işleniyor...', 'info');
                 ocrOutput.textContent = 'Metin çıkarılıyor...';
+                ocrBtn.disabled = true;
                 
                 const { data: { text } } = await Tesseract.recognize(
                     selectedImage, 
@@ -324,23 +377,14 @@
                     }
                 );
                 
-                const cleanedText = text.trim();
-                ocrOutput.textContent = cleanedText || '❌ Metin bulunamadı.';
+                extractedText = text.trim();
+                ocrOutput.textContent = extractedText || '❌ Metin bulunamadı.';
                 
-                if (cleanedText) {
-                    // Flutter'a metni kaydetmesi için mesaj gönder
-                    if (window.flutter_inappwebview) {
-                        const fileName = `ocr_metin_${new Date().getTime()}.txt`;
-                        const textBlob = new Blob([cleanedText], { type: 'text/plain' });
-                        const reader = new FileReader();
-                        reader.onloadend = function() {
-                            const base64 = reader.result.split(',')[1];
-                            window.flutter_inappwebview.callHandler('saveFile', fileName, base64);
-                        };
-                        reader.readAsDataURL(textBlob);
-                    }
-                    showStatus('✅ OCR tamamlandı! Metin kaydedildi.', 'success');
+                if (extractedText) {
+                    saveBtn.disabled = false;
+                    showStatus('✅ OCR tamamlandı! Metni kaydedebilirsiniz.', 'success');
                 } else {
+                    saveBtn.disabled = true;
                     showStatus('❌ Metin bulunamadı.', 'error');
                 }
                 
@@ -348,14 +392,20 @@
                 console.error('OCR hatası:', err);
                 ocrOutput.textContent = '❌ OCR işlemi başarısız: ' + err.message;
                 showStatus('❌ OCR başarısız!', 'error');
+                ocrBtn.disabled = false;
+                saveBtn.disabled = true;
             }
         });
 
-        // Flutter handler kaydı
+        // Flutter handler kaydı - OCR
         if (window.flutter_inappwebview) {
-            window.flutter_inappwebview.registerHandler('saveFile', function(data, callback) {
-                console.log('Dosya kaydedildi:', data);
+            // Metin kaydetme için
+            window.flutter_inappwebview.registerHandler('saveText', function(data, callback) {
+                console.log('📝 Metin kaydediliyor:', data);
+                if (callback) callback({'success': true, 'message': 'Metin başarıyla kaydedildi'});
             });
+
+            console.log('✅ OCR handlerları kaydedildi');
         }
     </script>
 </body>
