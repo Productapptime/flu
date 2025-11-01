@@ -11,6 +11,7 @@ import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'tools.dart';
 
 void main() async {
@@ -1069,11 +1070,141 @@ class ViewerScreen extends StatefulWidget {
 class _ViewerScreenState extends State<ViewerScreen> {
   InAppWebViewController? _controller;
   bool _loaded = false;
+  Directory? _pdfReaderManagerDir;
 
   String _viewerUrl() {
     final fileUri = Uri.file(widget.file.path).toString();
     final dark = widget.dark ? 'true' : 'false';
     return 'file:///android_asset/flutter_assets/assets/web/viewer.html?file=${Uri.encodeComponent(fileUri)}&dark=$dark';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeDirectory();
+  }
+
+  Future<void> _initializeDirectory() async {
+    try {
+      bool hasPermission = await Permission.manageExternalStorage.isGranted;
+
+      if (hasPermission) {
+        final documentsDir = Directory('/storage/emulated/0/Documents');
+        if (!await documentsDir.exists()) {
+          await documentsDir.create(recursive: true);
+          print('📁 Documents klasörü oluşturuldu.');
+        }
+
+        final target = Directory('${documentsDir.path}/pdfreadermanager');
+        if (!await target.exists()) {
+          await target.create(recursive: true);
+          print('📁 pdfreadermanager klasörü oluşturuldu.');
+        }
+
+        _pdfReaderManagerDir = target;
+      } else {
+        final appDir = await getApplicationDocumentsDirectory();
+        _pdfReaderManagerDir = Directory('${appDir.path}/pdfreadermanager');
+        if (!await _pdfReaderManagerDir!.exists()) {
+          await _pdfReaderManagerDir!.create(recursive: true);
+        }
+      }
+
+      print('📂 Kullanılan dizin: ${_pdfReaderManagerDir!.path}');
+    } catch (e) {
+      print('Klasör oluşturma hatası: $e');
+    }
+  }
+
+  Future<bool> _checkAllFilesAccessPermission() async {
+    final status = await Permission.manageExternalStorage.status;
+    return status.isGranted;
+  }
+
+  Future<void> _showAllFilesAccessDialog() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: Column(
+          children: [
+            Icon(Icons.folder_open, size: 48, color: Colors.red),
+            const SizedBox(height: 10),
+            Text('İzin Gerekli',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center),
+          ],
+        ),
+        content: Text(
+          'PDF dosyalarınızı Documents/pdfreadermanager klasörüne kaydetmek için "Tüm dosyalara erişim" iznine ihtiyacımız var.',
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('VAZGEÇ')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(context);
+              final result = await Permission.manageExternalStorage.request();
+              if (result.isGranted) {
+                await _initializeDirectory();
+              }
+            },
+            child: const Text('İZİN VER'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveUpdatedPdf(String fileName, String base64Data) async {
+    try {
+      // İzin kontrolü
+      final hasPermission = await _checkAllFilesAccessPermission();
+      if (!hasPermission) {
+        await _showAllFilesAccessDialog();
+        return;
+      }
+
+      // Dizin kontrolü
+      if (_pdfReaderManagerDir == null) {
+        await _initializeDirectory();
+      }
+
+      // Base64 verisini temizle
+      final cleanBase64 = base64Data.replaceFirst(RegExp(r'^data:.*?base64,'), '');
+      final bytes = base64.decode(cleanBase64);
+
+      // Orijinal dosya adını kullanarak yeni bir isim oluştur
+      final originalName = p.basenameWithoutExtension(widget.fileName);
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final newFileName = '${originalName}_updated_$timestamp.pdf';
+
+      final file = File('${_pdfReaderManagerDir!.path}/$newFileName');
+      await file.writeAsBytes(bytes);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ $newFileName kaydedildi\nKonum: ${file.path}'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('PDF kaydetme hatası: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ PDF kaydedilemedi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -1109,7 +1240,22 @@ class _ViewerScreenState extends State<ViewerScreen> {
               supportZoom: true,
               useHybridComposition: true,
             ),
-            onWebViewCreated: (controller) => _controller = controller,
+            onWebViewCreated: (controller) {
+              _controller = controller;
+              
+              // PDF kaydetme handler'ını ekleyin
+              controller.addJavaScriptHandler(
+                handlerName: 'onPdfSaved',
+                callback: (args) async {
+                  if (args.length >= 2) {
+                    final fileName = args[0] as String;
+                    final base64Data = args[1] as String;
+                    await _saveUpdatedPdf(fileName, base64Data);
+                  }
+                  return {'success': true};
+                },
+              );
+            },
             onLoadStop: (_, __) => setState(() => _loaded = true),
           ),
           if (!_loaded)
