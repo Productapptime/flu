@@ -79,6 +79,7 @@ class _HomePageState extends State<HomePage> {
   String _sortMode = 'Name';
   String? _currentPath;
   Directory? _baseDir;
+  Map<String, Color> _folderColors = {};
 
   @override
   void initState() {
@@ -121,6 +122,16 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _favorites = prefs.getStringList('favorites') ?? [];
       _recent = prefs.getStringList('recent') ?? [];
+      
+      // Load folder colors
+      final colorKeys = prefs.getStringList('folderColorKeys') ?? [];
+      final colorValues = prefs.getStringList('folderColorValues') ?? [];
+      _folderColors = {};
+      for (int i = 0; i < colorKeys.length; i++) {
+        if (i < colorValues.length) {
+          _folderColors[colorKeys[i]] = Color(int.parse(colorValues[i]));
+        }
+      }
     });
   }
 
@@ -128,6 +139,22 @@ class _HomePageState extends State<HomePage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('favorites', _favorites);
     await prefs.setStringList('recent', _recent);
+    
+    // Save folder colors
+    await prefs.setStringList('folderColorKeys', _folderColors.keys.toList());
+    await prefs.setStringList('folderColorValues', 
+        _folderColors.values.map((color) => color.value.toString()).toList());
+  }
+
+  Color _getFolderColor(String folderPath) {
+    return _folderColors[folderPath] ?? Colors.amber;
+  }
+
+  Future<void> _setFolderColor(String folderPath, Color color) async {
+    setState(() {
+      _folderColors[folderPath] = color;
+    });
+    await _saveLists();
   }
 
   Future<void> _importFile() async {
@@ -218,8 +245,53 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _renameFolder(String folderPath) async {
+    final controller = TextEditingController(text: p.basename(folderPath));
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Rename Folder'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'New folder name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newName = controller.text.trim();
+              if (newName.isEmpty) return;
+              
+              final newPath = p.join(p.dirname(folderPath), newName);
+              await Directory(folderPath).rename(newPath);
+              
+              // Update folder color
+              if (_folderColors.containsKey(folderPath)) {
+                final color = _folderColors[folderPath]!;
+                _folderColors.remove(folderPath);
+                _folderColors[newPath] = color;
+                await _saveLists();
+              }
+              
+              await _scanFilesAndFolders();
+              
+              if (mounted) Navigator.pop(context);
+            },
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _moveFile(String filePath) async {
     final allFolders = await _getAllFolders();
+    // Add root directory as an option
+    final foldersWithRoot = [_baseDir!.path, ...allFolders.where((folder) => folder != _baseDir!.path)];
+    
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -228,15 +300,23 @@ class _HomePageState extends State<HomePage> {
           width: double.maxFinite,
           height: 300,
           child: ListView.builder(
-            itemCount: allFolders.length,
+            itemCount: foldersWithRoot.length,
             itemBuilder: (_, index) {
-              final folder = allFolders[index];
+              final folder = foldersWithRoot[index];
+              final isRoot = folder == _baseDir!.path;
               return ListTile(
-                leading: const Icon(Icons.folder),
-                title: Text(p.relative(folder, from: _baseDir!.path)),
+                leading: Icon(isRoot ? Icons.home : Icons.folder, color: isRoot ? Colors.blue : _getFolderColor(folder)),
+                title: Text(isRoot ? 'All Files (Root)' : p.relative(folder, from: _baseDir!.path)),
+                subtitle: isRoot ? const Text('Move to main directory') : null,
                 onTap: () async {
                   final fileName = p.basename(filePath);
                   final newPath = p.join(folder, fileName);
+                  
+                  // If moving to same directory, do nothing
+                  if (p.dirname(filePath) == folder) {
+                    if (mounted) Navigator.pop(context);
+                    return;
+                  }
                   
                   await File(filePath).rename(newPath);
                   
@@ -295,6 +375,151 @@ class _HomePageState extends State<HomePage> {
       });
       _scanFilesAndFolders();
     }
+  }
+
+  Future<void> _deleteFile(String filePath) async {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete File'),
+        content: Text('Are you sure you want to delete "${p.basename(filePath)}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              final file = File(filePath);
+              if (await file.exists()) {
+                await file.delete();
+                
+                // Remove from favorites and recent
+                if (_favorites.contains(filePath)) {
+                  _favorites.remove(filePath);
+                }
+                if (_recent.contains(filePath)) {
+                  _recent.remove(filePath);
+                }
+              }
+              
+              await _saveLists();
+              await _scanFilesAndFolders();
+              
+              if (mounted) Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('File deleted')),
+              );
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteFolder(String folderPath) async {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Folder'),
+        content: Text('Are you sure you want to delete "${p.basename(folderPath)}" and all its contents?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              final folder = Directory(folderPath);
+              if (await folder.exists()) {
+                await folder.delete(recursive: true);
+                
+                // Remove folder color
+                if (_folderColors.containsKey(folderPath)) {
+                  _folderColors.remove(folderPath);
+                  await _saveLists();
+                }
+              }
+              
+              await _scanFilesAndFolders();
+              
+              if (mounted) Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Folder deleted')),
+              );
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _changeFolderColor(String folderPath) async {
+    final List<Color> colorOptions = [
+      Colors.amber,
+      Colors.blue,
+      Colors.red,
+      Colors.green,
+      Colors.purple,
+      Colors.orange,
+      Colors.teal,
+      Colors.pink,
+      Colors.indigo,
+      Colors.cyan,
+    ];
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Change Folder Color'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: colorOptions.map((color) {
+              return GestureDetector(
+                onTap: () {
+                  _setFolderColor(folderPath, color);
+                  Navigator.pop(context);
+                },
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.grey),
+                  ),
+                  child: _getFolderColor(folderPath) == color
+                      ? const Icon(Icons.check, color: Colors.white)
+                      : null,
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _printFile(String filePath) async {
+    final bytes = await File(filePath).readAsBytes();
+    await Printing.layoutPdf(onLayout: (_) => bytes);
+  }
+
+  Future<void> _shareFile(String filePath) async {
+    await Share.shareXFiles([XFile(filePath)]);
   }
 
   Future<void> _deleteSelectedFiles() async {
@@ -613,9 +838,26 @@ class _HomePageState extends State<HomePage> {
       children: [
         // Folders section
         ..._folders.map((folderPath) => ListTile(
-          leading: const Icon(Icons.folder, color: Colors.amber),
+          leading: Icon(Icons.folder, color: _getFolderColor(folderPath)),
           title: Text(p.basename(folderPath)),
           subtitle: const Text('Folder'),
+          trailing: PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'rename') {
+                _renameFolder(folderPath);
+              } else if (value == 'color') {
+                _changeFolderColor(folderPath);
+              } else if (value == 'delete') {
+                _deleteFolder(folderPath);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'rename', child: Text('Rename')),
+              PopupMenuItem(value: 'color', child: Text('Change Color')),
+              PopupMenuItem(value: 'delete', child: Text('Delete')),
+            ],
+          ),
           onTap: () => _enterFolder(folderPath),
         )),
         
@@ -672,13 +914,25 @@ class _HomePageState extends State<HomePage> {
             onSelected: (value) {
               if (value == 'rename') {
                 _renameFile(filePath);
+              } else if (value == 'edit') {
+                _openViewer(filePath);
+              } else if (value == 'print') {
+                _printFile(filePath);
+              } else if (value == 'share') {
+                _shareFile(filePath);
               } else if (value == 'move') {
                 _moveFile(filePath);
+              } else if (value == 'delete') {
+                _deleteFile(filePath);
               }
             },
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'rename', child: Text('Rename')),
+              PopupMenuItem(value: 'edit', child: Text('Edit')),
+              PopupMenuItem(value: 'print', child: Text('Print')),
+              PopupMenuItem(value: 'share', child: Text('Share')),
               PopupMenuItem(value: 'move', child: Text('Move')),
+              PopupMenuItem(value: 'delete', child: Text('Delete')),
             ],
           ),
         ],
