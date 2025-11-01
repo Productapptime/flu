@@ -691,88 +691,7 @@ class _HomePageState extends State<HomePage> {
               ),
           ],
         ),
-        actions: [
-          if (_selectedIndex == 0 && _currentPath != _baseDir!.path)
-            IconButton(
-              icon: const Icon(Icons.arrow_upward),
-              onPressed: _goBack,
-            ),
-          
-          // Search Icon
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () async {
-              final text = await showSearch<String>(
-                context: context,
-                delegate: FileSearchDelegate(initial: _searchQuery),
-              );
-              if (text != null) setState(() => _searchQuery = text);
-            },
-          ),
-          
-          // Create Folder Icon (only in All Files)
-          if (_selectedIndex == 0)
-            IconButton(
-              icon: const Icon(Icons.create_new_folder_outlined),
-              onPressed: _createFolder,
-            ),
-          
-          // Sort Icon
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.sort),
-            onSelected: (val) => setState(() => _sortMode = val),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'Name', child: Text('Sort by Name')),
-              PopupMenuItem(value: 'Size', child: Text('Sort by Size')),
-              PopupMenuItem(value: 'Date', child: Text('Sort by Date')),
-            ],
-          ),
-          
-          // Selection Mode Icons
-          if (_selectionMode && _selectedFiles.isNotEmpty) ...[
-            // Share selected files
-            IconButton(
-              icon: const Icon(Icons.share),
-              onPressed: _shareSelectedFiles,
-            ),
-            // Print selected files
-            IconButton(
-              icon: const Icon(Icons.print),
-              onPressed: _printSelectedFiles,
-            ),
-            // Delete selected files
-            IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: _deleteSelectedFiles,
-            ),
-          ],
-          
-          // Select All / Selection Mode Toggle
-          IconButton(
-            icon: Icon(
-              _selectionMode ? 
-                (_selectedFiles.length == _allFiles.length ? Icons.deselect : Icons.select_all) 
-                : Icons.select_all_outlined,
-            ),
-            onPressed: () {
-              if (_selectionMode) {
-                _selectAllFiles();
-              } else {
-                setState(() => _selectionMode = true);
-              }
-            },
-          ),
-          
-          // Close selection mode
-          if (_selectionMode)
-            IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => setState(() {
-                _selectionMode = false;
-                _selectedFiles.clear();
-              }),
-            ),
-        ],
+        actions: _selectionMode ? _buildSelectionModeActions() : _buildNormalModeActions(),
       ),
       drawer: Drawer(
         child: ListView(
@@ -833,6 +752,79 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  List<Widget> _buildNormalModeActions() {
+    return [
+      // Search Icon
+      IconButton(
+        icon: const Icon(Icons.search),
+        onPressed: () async {
+          final text = await showSearch<String>(
+            context: context,
+            delegate: FileSearchDelegate(initial: _searchQuery),
+          );
+          if (text != null) setState(() => _searchQuery = text);
+        },
+      ),
+      
+      // Create Folder Icon (only in All Files)
+      if (_selectedIndex == 0)
+        IconButton(
+          icon: const Icon(Icons.create_new_folder_outlined),
+          onPressed: _createFolder,
+        ),
+      
+      // Sort Icon
+      PopupMenuButton<String>(
+        icon: const Icon(Icons.sort),
+        onSelected: (val) => setState(() => _sortMode = val),
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: 'Name', child: Text('Sort by Name')),
+          PopupMenuItem(value: 'Size', child: Text('Sort by Size')),
+          PopupMenuItem(value: 'Date', child: Text('Sort by Date')),
+        ],
+      ),
+      
+      // Selection Mode Toggle
+      IconButton(
+        icon: const Icon(Icons.select_all_outlined),
+        onPressed: () => setState(() => _selectionMode = true),
+      ),
+    ];
+  }
+
+  List<Widget> _buildSelectionModeActions() {
+    return [
+      // Share selected files
+      IconButton(
+        icon: const Icon(Icons.share),
+        onPressed: _selectedFiles.isNotEmpty ? _shareSelectedFiles : null,
+      ),
+      // Print selected files
+      IconButton(
+        icon: const Icon(Icons.print),
+        onPressed: _selectedFiles.isNotEmpty ? _printSelectedFiles : null,
+      ),
+      // Delete selected files
+      IconButton(
+        icon: const Icon(Icons.delete),
+        onPressed: _selectedFiles.isNotEmpty ? _deleteSelectedFiles : null,
+      ),
+      // Select All / Deselect All
+      IconButton(
+        icon: Icon(_selectedFiles.length == _allFiles.length ? Icons.deselect : Icons.select_all),
+        onPressed: _selectAllFiles,
+      ),
+      // Close selection mode
+      IconButton(
+        icon: const Icon(Icons.close),
+        onPressed: () => setState(() {
+          _selectionMode = false;
+          _selectedFiles.clear();
+        }),
+      ),
+    ];
+  }
+
   Widget _buildAllFilesView(List<String> files) {
     return ListView(
       children: [
@@ -841,7 +833,7 @@ class _HomePageState extends State<HomePage> {
           leading: Icon(Icons.folder, color: _getFolderColor(folderPath)),
           title: Text(p.basename(folderPath)),
           subtitle: const Text('Folder'),
-          trailing: PopupMenuButton<String>(
+          trailing: _selectionMode ? null : PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (value) {
               if (value == 'rename') {
@@ -858,7 +850,13 @@ class _HomePageState extends State<HomePage> {
               PopupMenuItem(value: 'delete', child: Text('Delete')),
             ],
           ),
-          onTap: () => _enterFolder(folderPath),
+          onTap: () {
+            if (_selectionMode) {
+              // Klasörler seçim modunda seçilemez, sadece dosyalar seçilebilir
+              return;
+            }
+            _enterFolder(folderPath);
+          },
         )),
         
         // Files section
