@@ -791,9 +791,13 @@ class _HomePageState extends State<HomePage> {
                 decoration: InputDecoration(
                   hintText: 'Search files...',
                   border: InputBorder.none,
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                  hintStyle: TextStyle(
+                    color: widget.dark ? Colors.white70 : Colors.black54,
+                  ),
                 ),
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(
+                  color: widget.dark ? Colors.white : Colors.black,
+                ),
               )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -816,7 +820,10 @@ class _HomePageState extends State<HomePage> {
                     icon: const Icon(Icons.arrow_back),
                     onPressed: _goBack,
                   )
-                : null),
+                : IconButton(
+                    icon: const Icon(Icons.menu),
+                    onPressed: () => _scaffoldKey.currentState!.openDrawer(),
+                  )),
         actions: _isSearching 
             ? [
                 IconButton(
@@ -828,7 +835,7 @@ class _HomePageState extends State<HomePage> {
               ]
             : (_selectionMode ? _buildSelectionModeActions() : _buildNormalModeActions()),
       ),
-      drawer: _isSearching ? null : Drawer(
+      drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
@@ -871,7 +878,7 @@ class _HomePageState extends State<HomePage> {
       body: _selectedIndex == 3 
           ? ToolsPage(dark: widget.dark)
           : (_selectedIndex == 0 ? _buildAllFilesView(files) : _buildListView(files)),
-      bottomNavigationBar: _isSearching ? null : BottomNavigationBar(
+      bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         selectedItemColor: Colors.red,
         unselectedItemColor: Colors.grey,
@@ -889,11 +896,11 @@ class _HomePageState extends State<HomePage> {
           BottomNavigationBarItem(icon: Icon(Icons.build), label: 'Tools'),
         ],
       ),
-      floatingActionButton: _isSearching || _selectedIndex != 0 ? null : FloatingActionButton(
+      floatingActionButton: _selectedIndex == 0 ? FloatingActionButton(
         onPressed: _importFile,
         backgroundColor: Colors.red,
         child: const Icon(Icons.add, color: Colors.white),
-      ),
+      ) : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
@@ -969,7 +976,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildAllFilesView(List<String> files) {
-    if (_searchQuery.isNotEmpty && files.isEmpty) {
+    if (_searchQuery.isNotEmpty && files.isEmpty && _folders.where((folderPath) => 
+      p.basename(folderPath).toLowerCase().contains(_searchQuery.toLowerCase())
+    ).isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1148,8 +1157,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
-
-// FileSearchDelegate sınıfını kaldırdık çünkü artık gerek yok
 
 class ViewerScreen extends StatefulWidget {
   final File file;
