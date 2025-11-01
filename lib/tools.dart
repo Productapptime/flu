@@ -93,8 +93,16 @@ class _ToolsPageState extends State<ToolsPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          _openToolPage(context, title, htmlFile);
+        onTap: () async {
+          // Tüm dosya erişim iznini kontrol et
+          final hasPermission = await _checkAllFilesAccessPermission();
+          if (hasPermission) {
+            // İzin varsa direkt aç
+            _openToolPage(context, title, htmlFile);
+          } else {
+            // İzin yoksa, özel izin dialog göster
+            await _showAllFilesAccessDialog(context, title, htmlFile);
+          }
         },
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -129,6 +137,125 @@ class _ToolsPageState extends State<ToolsPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Future<bool> _checkAllFilesAccessPermission() async {
+    try {
+      final status = await Permission.manageExternalStorage.status;
+      return status.isGranted;
+    } catch (e) {
+      print('İzin kontrol hatası: $e');
+      return false;
+    }
+  }
+
+  Future<void> _showAllFilesAccessDialog(BuildContext context, String title, String htmlFile) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Column(
+          children: [
+            Icon(Icons.folder_open, size: 48, color: Colors.red),
+            const SizedBox(height: 10),
+            Text(
+              'İzin Gerekli',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'PDF dosyalarınızı Documents/PDF_Manager_Plus klasörüne kaydetmek için "Tüm dosyalara erişim" iznine ihtiyacımız var.',
+              style: TextStyle(fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 15),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Text(
+                'Bu izin, PDF dosyalarınızı Documents klasöründe "PDF_Manager_Plus" klasörüne kaydetmemize olanak tanır.',
+                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('VAZGEÇ'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.pop(context);
+              await _requestAllFilesAccessPermission(context, title, htmlFile);
+            },
+            child: Text('İZİN VER'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _requestAllFilesAccessPermission(BuildContext context, String title, String htmlFile) async {
+    try {
+      final status = await Permission.manageExternalStorage.request();
+      
+      if (status.isGranted) {
+        _openToolPage(context, title, htmlFile);
+      } else {
+        await _showSettingsDialog(context, title, htmlFile);
+      }
+    } catch (e) {
+      print('İzin isteme hatası: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('İzin istenirken bir hata oluştu'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showSettingsDialog(BuildContext context, String title, String htmlFile) async {
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('İzin Gerekli'),
+        content: Text(
+          'PDF dosyalarını Documents klasörüne kaydetmek için "Tüm dosyalara erişim" iznini vermeniz gerekiyor.\n\n'
+          'Lütfen ayarlardan bu izni etkinleştirin.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('İPTAL'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              openAppSettings();
+            },
+            child: Text('AYARLAR'),
+          ),
+        ],
       ),
     );
   }
@@ -180,21 +307,38 @@ class _ToolWebViewState extends State<ToolWebView> {
 
   Future<void> _initializeDirectory() async {
     try {
-      // Documents klasörü içinde PDF_Manager_Plus klasörü oluştur
-      final documentsDir = await getApplicationDocumentsDirectory();
-      _pdfManagerPlusDir = Directory('${documentsDir.path}/PDF_Manager_Plus');
+      // Tüm dosya erişim izni varsa Documents/PDF_Manager_Plus klasörünü kullan
+      final hasPermission = await Permission.manageExternalStorage.isGranted;
+      
+      if (hasPermission) {
+        // Documents klasörü içinde PDF_Manager_Plus klasörü oluştur
+        final downloadsDir = await getDownloadsDirectory();
+        if (downloadsDir != null) {
+          _pdfManagerPlusDir = Directory('${downloadsDir.path}/Documents/PDF_Manager_Plus');
+        } else {
+          _pdfManagerPlusDir = Directory('/storage/emulated/0/Documents/PDF_Manager_Plus');
+        }
+        print('PDF_Manager_Plus dizini: ${_pdfManagerPlusDir!.path}');
+      } else {
+        // İzin yoksa uygulama dizinine PDF_Manager_Plus klasörü oluştur
+        final appDir = await getApplicationDocumentsDirectory();
+        _pdfManagerPlusDir = Directory('${appDir.path}/PDF_Manager_Plus');
+        print('Uygulama PDF_Manager_Plus dizini: ${_pdfManagerPlusDir!.path}');
+      }
       
       // Klasörü oluştur
       if (!await _pdfManagerPlusDir!.exists()) {
         await _pdfManagerPlusDir!.create(recursive: true);
         print('PDF_Manager_Plus klasörü oluşturuldu: ${_pdfManagerPlusDir!.path}');
-      } else {
-        print('PDF_Manager_Plus klasörü zaten var: ${_pdfManagerPlusDir!.path}');
       }
     } catch (e) {
       print('Klasör hatası: $e');
-      // Fallback: direkt documents directory
-      _pdfManagerPlusDir = await getApplicationDocumentsDirectory();
+      // Fallback
+      final appDir = await getApplicationDocumentsDirectory();
+      _pdfManagerPlusDir = Directory('${appDir.path}/PDF_Manager_Plus');
+      if (!await _pdfManagerPlusDir!.exists()) {
+        await _pdfManagerPlusDir!.create(recursive: true);
+      }
     }
   }
 
@@ -294,7 +438,7 @@ class _ToolWebViewState extends State<ToolWebView> {
               children: [
                 Text('✅ $uniqueFileName kaydedildi'),
                 Text(
-                  'Konum: PDF_Manager_Plus klasörü',
+                  'Konum: Documents/PDF_Manager_Plus klasörü',
                   style: TextStyle(fontSize: 12, color: Colors.grey[300]),
                 ),
               ],
@@ -356,7 +500,7 @@ class _ToolWebViewState extends State<ToolWebView> {
               children: [
                 Text('✅ $uniqueFileName kaydedildi'),
                 Text(
-                  'Konum: PDF_Manager_Plus klasörü',
+                  'Konum: Documents/PDF_Manager_Plus klasörü',
                   style: TextStyle(fontSize: 12, color: Colors.grey[300]),
                 ),
               ],
@@ -429,7 +573,6 @@ class _ToolWebViewState extends State<ToolWebView> {
   Future<void> _openPdfManagerPlusFolder() async {
     try {
       if (_pdfManagerPlusDir != null && await _pdfManagerPlusDir!.exists()) {
-        // Klasör içeriğini göster
         _showFolderContents();
       } else {
         if (mounted) {
@@ -467,10 +610,9 @@ class _ToolWebViewState extends State<ToolWebView> {
                     final file = fileList[index];
                     final size = (file.lengthSync() / 1024).toStringAsFixed(1);
                     final fileName = file.uri.pathSegments.last;
-                    final modified = DateTime.fromMillisecondsSinceEpoch(file.lastModifiedSync());
+                    final modified = file.lastModifiedSync();
                     final formattedDate = '${modified.day}/${modified.month}/${modified.year} ${modified.hour}:${modified.minute}';
                     
-                    // Dosya türüne göre ikon belirle
                     IconData icon;
                     Color iconColor;
                     if (fileName.toLowerCase().endsWith('.pdf')) {
@@ -504,34 +646,6 @@ class _ToolWebViewState extends State<ToolWebView> {
             onPressed: () => Navigator.pop(context),
             child: Text('Kapat'),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showFolderPath();
-            },
-            child: Text('Yol Göster'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showFolderPath() {
-    if (_pdfManagerPlusDir == null) return;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('📁 Klasör Yolu'),
-        content: SelectableText(
-          _pdfManagerPlusDir!.path,
-          style: TextStyle(fontFamily: 'monospace', fontSize: 12),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Tamam'),
-          ),
         ],
       ),
     );
@@ -552,7 +666,7 @@ class _ToolWebViewState extends State<ToolWebView> {
             onPressed: () {
               file.deleteSync();
               Navigator.pop(context);
-              _showFolderContents(); // Listeyi yenile
+              _showFolderContents();
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
