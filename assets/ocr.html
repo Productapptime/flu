@@ -136,6 +136,25 @@
         .save-btn:hover {
             background: #218838;
         }
+        .copy-btn {
+            background: #007bff;
+        }
+        .copy-btn:hover {
+            background: #0056b3;
+        }
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .output-title {
+            margin: 0;
+        }
+        .output-buttons {
+            display: flex;
+            gap: 10px;
+        }
     </style>
 </head>
 <body>
@@ -174,7 +193,12 @@
         </div>
         
         <div class="box">
-            <h3>Çıkarılan Metin:</h3>
+            <div class="output-header">
+                <h3 class="output-title">Çıkarılan Metin:</h3>
+                <div class="output-buttons">
+                    <button id="copyBtn" class="copy-btn" disabled>📋 Metni Kopyala</button>
+                </div>
+            </div>
             <div id="ocrOutput">Henüz OCR yapılmadı...</div>
         </div>
     </div>
@@ -196,6 +220,7 @@
         const canvas = document.getElementById('canvas');
         const ocrBtn = document.getElementById('ocrBtn');
         const saveBtn = document.getElementById('saveBtn');
+        const copyBtn = document.getElementById('copyBtn');
         const ocrStatus = document.getElementById('ocrStatus');
         const ocrOutput = document.getElementById('ocrOutput');
 
@@ -206,6 +231,32 @@
 
         function updateProgress(percent) {
             showStatus(`İşlem devam ediyor: %${percent}`, 'info');
+        }
+
+        // Metin kopyalama fonksiyonu
+        function copyTextToClipboard(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                // Modern yöntem
+                return navigator.clipboard.writeText(text)
+                    .then(() => true)
+                    .catch(() => false);
+            } else {
+                // Eski yöntem
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    const successful = document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    return Promise.resolve(successful);
+                } catch (err) {
+                    document.body.removeChild(textArea);
+                    return Promise.resolve(false);
+                }
+            }
         }
 
         // Metin kaydetme fonksiyonu
@@ -265,6 +316,7 @@
                 selectedImage = preview.src;
                 ocrBtn.disabled = false;
                 saveBtn.disabled = true;
+                copyBtn.disabled = true;
                 showStatus('✅ Görsel hazır, metni çıkarabilirsiniz.', 'success');
             };
             reader.readAsDataURL(file);
@@ -320,6 +372,7 @@
                 selectedImage = preview.src;
                 ocrBtn.disabled = false;
                 saveBtn.disabled = true;
+                copyBtn.disabled = true;
                 showStatus('✅ Sayfa hazır, metni çıkarabilirsiniz.', 'success');
                 
             } catch (error) {
@@ -331,6 +384,7 @@
             preview.style.display = 'none';
             ocrBtn.disabled = true;
             saveBtn.disabled = true;
+            copyBtn.disabled = true;
             ocrOutput.textContent = 'Henüz OCR yapılmadı...';
             showStatus('Henüz işlem yapılmadı...', 'info');
             selectedImage = null;
@@ -340,6 +394,29 @@
             pdfPageSelect.style.display = 'none';
             pdfPageSelect.innerHTML = '<option value="">Sayfa seçin</option>';
         }
+
+        // Metin kopyalama butonu
+        copyBtn.addEventListener('click', async () => {
+            if (!extractedText) {
+                showStatus('Kopyalanacak metin yok!', 'error');
+                return;
+            }
+
+            const success = await copyTextToClipboard(extractedText);
+            if (success) {
+                showStatus('✅ Metin panoya kopyalandı!', 'success');
+                // Buton geçici olarak değişsin
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = '✅ Kopyalandı!';
+                copyBtn.disabled = true;
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.disabled = false;
+                }, 2000);
+            } else {
+                showStatus('❌ Metin kopyalanamadı!', 'error');
+            }
+        });
 
         // Metin kaydetme butonu
         saveBtn.addEventListener('click', () => {
@@ -382,9 +459,11 @@
                 
                 if (extractedText) {
                     saveBtn.disabled = false;
-                    showStatus('✅ OCR tamamlandı! Metni kaydedebilirsiniz.', 'success');
+                    copyBtn.disabled = false;
+                    showStatus('✅ OCR tamamlandı! Metni kaydedebilir veya kopyalayabilirsiniz.', 'success');
                 } else {
                     saveBtn.disabled = true;
+                    copyBtn.disabled = true;
                     showStatus('❌ Metin bulunamadı.', 'error');
                 }
                 
@@ -394,6 +473,7 @@
                 showStatus('❌ OCR başarısız!', 'error');
                 ocrBtn.disabled = false;
                 saveBtn.disabled = true;
+                copyBtn.disabled = true;
             }
         });
 
