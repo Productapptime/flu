@@ -691,6 +691,12 @@ class _HomePageState extends State<HomePage> {
               ),
           ],
         ),
+        leading: _selectedIndex == 0 && _currentPath != _baseDir!.path && !_selectionMode
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: _goBack,
+              )
+            : null,
         actions: _selectionMode ? _buildSelectionModeActions() : _buildNormalModeActions(),
       ),
       drawer: Drawer(
