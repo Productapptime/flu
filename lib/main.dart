@@ -113,7 +113,11 @@ class _HomePageState extends State<HomePage> {
       if (e is File && e.path.toLowerCase().endsWith('.pdf')) {
         pdfPaths.add(e.path);
       } else if (e is Directory) {
-        folderPaths.add(e.path);
+        // pdfreadermanager klasörünü filtrele
+        final folderName = p.basename(e.path);
+        if (folderName != 'pdfreadermanager') {
+          folderPaths.add(e.path);
+        }
       }
     }
     
@@ -377,7 +381,11 @@ class _HomePageState extends State<HomePage> {
     
     await for (var entity in dir.list(recursive: true)) {
       if (entity is Directory) {
-        folders.add(entity.path);
+        // pdfreadermanager klasörünü filtrele
+        final folderName = p.basename(entity.path);
+        if (folderName != 'pdfreadermanager') {
+          folders.add(entity.path);
+        }
       }
     }
     
