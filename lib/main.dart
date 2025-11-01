@@ -84,6 +84,7 @@ class _HomePageState extends State<HomePage> {
   String? _currentPath;
   Directory? _baseDir;
   Map<String, Color> _folderColors = {};
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -163,6 +164,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _importFile() async {
+    // Drawer'ı kapat
+    if (_scaffoldKey.currentState!.isDrawerOpen) {
+      _scaffoldKey.currentState!.closeDrawer();
+    }
+
     final res = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
@@ -173,8 +179,15 @@ class _HomePageState extends State<HomePage> {
       final newPath = p.join(_currentPath!, p.basename(path));
       await imported.copy(newPath);
       await _scanFilesAndFolders();
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('File imported successfully')));
+      
+      // All Files sekmesine geç
+      setState(() {
+        _selectedIndex = 0;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('File imported successfully')),
+      );
     }
   }
 
@@ -733,6 +746,7 @@ class _HomePageState extends State<HomePage> {
     final titles = ['All Files', 'Recent', 'Favorites', 'Tools'];
 
     return Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -765,12 +779,15 @@ class _HomePageState extends State<HomePage> {
             ListTile(
               leading: const Icon(Icons.info_outline),
               title: const Text('About'),
-              onTap: () => showAboutDialog(
-                context: context,
-                applicationName: 'PDF Manager Plus',
-                applicationVersion: '4.1',
-                children: const [Text('Developed by Arvin')],
-              ),
+              onTap: () {
+                _scaffoldKey.currentState!.closeDrawer();
+                showAboutDialog(
+                  context: context,
+                  applicationName: 'PDF Manager Plus',
+                  applicationVersion: '4.1',
+                  children: const [Text('Developed by Arvin')],
+                );
+              },
             ),
             ListTile(
               leading: const Icon(Icons.upload_file),
@@ -811,6 +828,12 @@ class _HomePageState extends State<HomePage> {
           BottomNavigationBarItem(icon: Icon(Icons.build), label: 'Tools'),
         ],
       ),
+      floatingActionButton: _selectedIndex == 0 ? FloatingActionButton(
+        onPressed: _importFile,
+        backgroundColor: Colors.red,
+        child: const Icon(Icons.add, color: Colors.white),
+      ) : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -1037,18 +1060,36 @@ class FileSearchDelegate extends SearchDelegate<String> {
   }
 
   @override
-  List<Widget>? buildActions(BuildContext context) =>
-      [IconButton(icon: const Icon(Icons.clear), onPressed: () => query = '')];
+  List<Widget>? buildActions(BuildContext context) => [
+    IconButton(
+      icon: const Icon(Icons.clear),
+      onPressed: () {
+        query = '';
+      },
+    ),
+  ];
 
   @override
-  Widget? buildLeading(BuildContext context) =>
-      IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, query));
+  Widget? buildLeading(BuildContext context) => IconButton(
+    icon: const Icon(Icons.arrow_back),
+    onPressed: () {
+      close(context, query);
+    },
+  );
 
   @override
-  Widget buildResults(BuildContext context) => Container();
+  Widget buildResults(BuildContext context) {
+    return _buildSearchResults();
+  }
 
   @override
-  Widget buildSuggestions(BuildContext context) => Container();
+  Widget buildSuggestions(BuildContext context) {
+    return _buildSearchResults();
+  }
+
+  Widget _buildSearchResults() {
+    return Container();
+  }
 }
 
 class ViewerScreen extends StatefulWidget {
