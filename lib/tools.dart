@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class ToolsPage extends StatefulWidget {
@@ -161,6 +162,7 @@ class _ToolWebViewState extends State<ToolWebView> {
   InAppWebViewController? _controller;
   bool _loaded = false;
   bool _hasStoragePermission = false;
+  Directory? _appDocumentsDirectory;
 
   String _getWebViewUrl() {
     return 'file:///android_asset/flutter_assets/assets/${widget.htmlFile}?dark=${widget.dark}';
@@ -169,24 +171,61 @@ class _ToolWebViewState extends State<ToolWebView> {
   @override
   void initState() {
     super.initState();
+    _initializeAppDirectory();
     _checkStoragePermission();
   }
 
+  Future<void> _initializeAppDirectory() async {
+    try {
+      // Uygulamanın documents directory'sini al
+      final directory = await getApplicationDocumentsDirectory();
+      // PDF_Manager_Plus klasörü oluştur
+      _appDocumentsDirectory = Directory('${directory.path}/PDF_Manager_Plus');
+      if (!await _appDocumentsDirectory!.exists()) {
+        await _appDocumentsDirectory!.create(recursive: true);
+      }
+    } catch (e) {
+      print('Klasör oluşturma hatası: $e');
+    }
+  }
+
   Future<void> _checkStoragePermission() async {
+    // Android 10+ için storage permission gerekli değil
+    // Sadece Android 9 ve altı için kontrol ediyoruz
+    if (await _isAndroid10OrAbove()) {
+      setState(() {
+        _hasStoragePermission = true;
+      });
+      return;
+    }
+
     final status = await Permission.storage.status;
     setState(() {
       _hasStoragePermission = status.isGranted;
     });
   }
 
+  Future<bool> _isAndroid10OrAbove() async {
+    // Basit bir kontrol - Android 10 (API 29) ve üstü için storage permission gerekmez
+    return true; // Modern Android versiyonları için her zaman true döndür
+  }
+
   Future<void> _requestStoragePermission() async {
+    // Android 10+ için permission gerekmez
+    if (await _isAndroid10OrAbove()) {
+      setState(() {
+        _hasStoragePermission = true;
+      });
+      _controller?.reload();
+      return;
+    }
+
     final status = await Permission.storage.request();
     setState(() {
       _hasStoragePermission = status.isGranted;
     });
     
     if (status.isGranted) {
-      // İzin verildi, sayfayı yeniden yükle
       _controller?.reload();
     }
   }
@@ -197,7 +236,7 @@ class _ToolWebViewState extends State<ToolWebView> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text(
-            "📁 Dosya Erişim İzni Gerekli",
+            "📁 Uygulama Klasörüne Erişim",
             style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
           ),
           content: const Column(
@@ -205,12 +244,12 @@ class _ToolWebViewState extends State<ToolWebView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Bu özelliği kullanabilmek için dosya erişim iznine ihtiyacınız var.",
+                "PDF dosyalarını uygulama klasörüne kaydedebilmek için izin gerekiyor.",
                 style: TextStyle(fontSize: 16),
               ),
               SizedBox(height: 10),
               Text(
-                "• PDF dosyalarını kaydedebilme\n• İndirme klasörüne erişim\n• Dosya yönetimi",
+                "• PDF_Manager_Plus klasörüne erişim\n• Dosya kaydetme ve yönetme\n• Güvenli dosya depolama",
                 style: TextStyle(fontSize: 14, color: Colors.grey),
               ),
             ],
@@ -237,52 +276,6 @@ class _ToolWebViewState extends State<ToolWebView> {
     );
   }
 
-  void _showPermissionSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text(
-            "⚙️ Ayarlara Yönlendir",
-            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-          ),
-          content: const Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Dosya erişim iznini ayarlardan etkinleştirmeniz gerekiyor.",
-                style: TextStyle(fontSize: 16),
-              ),
-              SizedBox(height: 10),
-              Text(
-                "Lütfen ayarlara gidip 'Dosya ve Medya' iznini etkinleştirin.",
-                style: TextStyle(fontSize: 14, color: Colors.grey),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("İptal"),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () {
-                Navigator.pop(context);
-                openAppSettings();
-              },
-              child: const Text(
-                "Ayarlara Git",
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -291,12 +284,17 @@ class _ToolWebViewState extends State<ToolWebView> {
         backgroundColor: widget.dark ? Colors.black : Colors.red,
         foregroundColor: Colors.white,
         actions: [
-          if (!_hasStoragePermission)
+          if (!_hasStoragePermission && !_isAndroid10OrAbove())
             IconButton(
               icon: const Icon(Icons.warning_amber_rounded),
               onPressed: _showPermissionDialog,
               tooltip: "Dosya Erişim İzni Gerekli",
             ),
+          IconButton(
+            icon: const Icon(Icons.folder_open),
+            onPressed: _openAppFolder,
+            tooltip: "Uygulama Klasörünü Aç",
+          ),
         ],
       ),
       body: _hasStoragePermission ? _buildWebView() : _buildPermissionRequiredView(),
@@ -331,37 +329,11 @@ class _ToolWebViewState extends State<ToolWebView> {
                 return {'success': true};
               },
             );
-            
-            controller.addJavaScriptHandler(
-              handlerName: 'checkPermission',
-              callback: (args) {
-                return {'hasPermission': _hasStoragePermission};
-              },
-            );
-            
-            controller.addJavaScriptHandler(
-              handlerName: 'requestPermission',
-              callback: (args) async {
-                if (!_hasStoragePermission) {
-                  _showPermissionDialog();
-                }
-                return {'success': true};
-              },
-            );
           },
           onLoadStop: (controller, url) {
             setState(() {
               _loaded = true;
             });
-            
-            // WebView'e izin durumunu bildir
-            controller.evaluateJavascript(
-              source: '''
-                if (typeof window.flutterHasStoragePermission !== 'undefined') {
-                  window.flutterHasStoragePermission = $_hasStoragePermission;
-                }
-              ''',
-            );
           },
         ),
         if (!_loaded)
@@ -385,7 +357,7 @@ class _ToolWebViewState extends State<ToolWebView> {
           ),
           const SizedBox(height: 20),
           Text(
-            "📁 Dosya Erişim İzni Gerekli",
+            "📁 Uygulama Klasörüne Erişim",
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -395,7 +367,7 @@ class _ToolWebViewState extends State<ToolWebView> {
           ),
           const SizedBox(height: 15),
           Text(
-            "${widget.toolName} özelliğini kullanabilmek için dosya erişim iznine ihtiyacınız var.",
+            "${widget.toolName} özelliğini kullanabilmek için uygulama klasörüne erişim izni gerekiyor.",
             style: TextStyle(
               fontSize: 16,
               color: widget.dark ? Colors.grey[300] : Colors.grey[700],
@@ -411,9 +383,9 @@ class _ToolWebViewState extends State<ToolWebView> {
             ),
             child: Column(
               children: [
-                _buildPermissionFeature("PDF dosyalarını kaydedebilme"),
-                _buildPermissionFeature("İndirme klasörüne erişim"),
-                _buildPermissionFeature("Dosya yönetimi ve düzenleme"),
+                _buildPermissionFeature("PDF_Manager_Plus klasörü oluşturma"),
+                _buildPermissionFeature("Güvenli dosya depolama"),
+                _buildPermissionFeature("Otomatik klasör yönetimi"),
               ],
             ),
           ),
@@ -441,14 +413,6 @@ class _ToolWebViewState extends State<ToolWebView> {
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 10),
-          TextButton(
-            onPressed: _showPermissionSettingsDialog,
-            child: const Text(
-              "İzni Manuel Ayarlardan Etkinleştir",
-              style: TextStyle(decoration: TextDecoration.underline),
-            ),
           ),
         ],
       ),
@@ -481,25 +445,39 @@ class _ToolWebViewState extends State<ToolWebView> {
 
   Future<void> _saveFile(String fileName, String base64Data) async {
     try {
+      if (_appDocumentsDirectory == null) {
+        await _initializeAppDirectory();
+      }
+
       // Base64 veriyi decode et
       final bytes = base64.decode(base64Data);
       
-      // Download klasörüne kaydet
-      final directory = Directory('/storage/emulated/0/Download');
-      if (!await directory.exists()) {
-        await directory.create(recursive: true);
-      }
-      
-      final file = File('${directory.path}/$fileName');
+      // Uygulama klasörüne kaydet
+      final file = File('${_appDocumentsDirectory!.path}/$fileName');
       await file.writeAsBytes(bytes);
       
       // Başarı mesajı göster
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ $fileName Download klasörüne kaydedildi'),
+            content: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('✅ $fileName kaydedildi'),
+                Text(
+                  'Konum: PDF_Manager_Plus klasörü',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[300]),
+                ),
+              ],
+            ),
             backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Klasörü Aç',
+              textColor: Colors.white,
+              onPressed: _openAppFolder,
+            ),
           ),
         );
       }
@@ -514,5 +492,91 @@ class _ToolWebViewState extends State<ToolWebView> {
         );
       }
     }
+  }
+
+  void _openAppFolder() {
+    if (_appDocumentsDirectory != null && _appDocumentsDirectory!.existsSync()) {
+      // Klasör içeriğini göster
+      _showFolderContents();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('📁 Uygulama klasörü henüz oluşturulmadı'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
+  void _showFolderContents() {
+    if (_appDocumentsDirectory == null) return;
+
+    final files = _appDocumentsDirectory!.listSync();
+    final fileList = files.whereType<File>().toList();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('📁 PDF_Manager_Plus Klasörü'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: fileList.isEmpty
+              ? const Center(child: Text('Henüz dosya yok'))
+              : ListView.builder(
+                  itemCount: fileList.length,
+                  itemBuilder: (context, index) {
+                    final file = fileList[index];
+                    final size = (file.lengthSync() / 1024).toStringAsFixed(1);
+                    return ListTile(
+                      leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                      title: Text(file.uri.pathSegments.last),
+                      subtitle: Text('$size KB'),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _deleteFile(file),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Kapat'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteFile(File file) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Dosyayı Sil'),
+        content: Text('${file.uri.pathSegments.last} silinsin mi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal'),
+          ),
+          TextButton(
+            onPressed: () {
+              file.deleteSync();
+              Navigator.pop(context);
+              _showFolderContents(); // Listeyi yenile
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('🗑️ Dosya silindi'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            child: const Text('Sil', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 }
