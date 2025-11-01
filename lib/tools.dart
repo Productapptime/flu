@@ -184,7 +184,7 @@ class _ToolsPageState extends State<ToolsPage> {
                 border: Border.all(color: Colors.grey[300]!),
               ),
               child: Text(
-                'Bu izin, PDF dosyalarınızı Download klasörüne kaydetmemize olanak tanır.',
+                'Bu izin, PDF dosyalarınızı "PDF Manager Plus" klasörüne kaydetmemize olanak tanır.',
                 style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                 textAlign: TextAlign.center,
               ),
@@ -296,7 +296,7 @@ class ToolWebView extends StatefulWidget {
 class _ToolWebViewState extends State<ToolWebView> {
   InAppWebViewController? _controller;
   bool _loaded = false;
-  Directory? _downloadsDirectory;
+  Directory? _pdfManagerPlusDir;
 
   String _getWebViewUrl() {
     return 'file:///android_asset/flutter_assets/assets/${widget.htmlFile}?dark=${widget.dark}';
@@ -310,27 +310,38 @@ class _ToolWebViewState extends State<ToolWebView> {
 
   Future<void> _initializeDirectory() async {
     try {
-      // Tüm dosya erişim izni varsa Download klasörünü kullan
+      // Tüm dosya erişim izni varsa Download/PDF Manager Plus klasörünü kullan
       final hasPermission = await Permission.manageExternalStorage.isGranted;
       
       if (hasPermission) {
-        _downloadsDirectory = await getDownloadsDirectory();
-        if (_downloadsDirectory == null) {
-          _downloadsDirectory = Directory('/storage/emulated/0/Download');
+        // Download klasörü içinde PDF Manager Plus klasörü oluştur
+        final downloadsDir = await getDownloadsDirectory();
+        if (downloadsDir != null) {
+          _pdfManagerPlusDir = Directory('${downloadsDir.path}/PDF Manager Plus');
+        } else {
+          _pdfManagerPlusDir = Directory('/storage/emulated/0/Download/PDF Manager Plus');
         }
-        print('Downloads dizini kullanılıyor: ${_downloadsDirectory!.path}');
+        print('PDF Manager Plus dizini: ${_pdfManagerPlusDir!.path}');
       } else {
-        // İzin yoksa uygulama dizinine kaydet
-        _downloadsDirectory = await getApplicationDocumentsDirectory();
-        print('Uygulama dizini kullanılıyor: ${_downloadsDirectory!.path}');
+        // İzin yoksa uygulama dizinine PDF Manager Plus klasörü oluştur
+        final appDir = await getApplicationDocumentsDirectory();
+        _pdfManagerPlusDir = Directory('${appDir.path}/PDF Manager Plus');
+        print('Uygulama PDF Manager Plus dizini: ${_pdfManagerPlusDir!.path}');
       }
       
-      if (!await _downloadsDirectory!.exists()) {
-        await _downloadsDirectory!.create(recursive: true);
+      // Klasörü oluştur
+      if (!await _pdfManagerPlusDir!.exists()) {
+        await _pdfManagerPlusDir!.create(recursive: true);
+        print('PDF Manager Plus klasörü oluşturuldu: ${_pdfManagerPlusDir!.path}');
       }
     } catch (e) {
       print('Klasör hatası: $e');
-      _downloadsDirectory = await getApplicationDocumentsDirectory();
+      // Fallback
+      final appDir = await getApplicationDocumentsDirectory();
+      _pdfManagerPlusDir = Directory('${appDir.path}/PDF Manager Plus');
+      if (!await _pdfManagerPlusDir!.exists()) {
+        await _pdfManagerPlusDir!.create(recursive: true);
+      }
     }
   }
 
@@ -341,6 +352,13 @@ class _ToolWebViewState extends State<ToolWebView> {
         title: Text(widget.toolName),
         backgroundColor: widget.dark ? Colors.black : Colors.red,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.folder_open),
+            onPressed: _openPdfManagerPlusFolder,
+            tooltip: "PDF Manager Plus Klasörünü Aç",
+          ),
+        ],
       ),
       body: _buildWebView(),
     );
@@ -402,7 +420,7 @@ class _ToolWebViewState extends State<ToolWebView> {
 
   Future<void> _saveFile(String fileName, String base64Data) async {
     try {
-      if (_downloadsDirectory == null) {
+      if (_pdfManagerPlusDir == null) {
         await _initializeDirectory();
       }
 
@@ -410,7 +428,7 @@ class _ToolWebViewState extends State<ToolWebView> {
       final bytes = base64.decode(cleanBase64);
       
       final uniqueFileName = await _getUniqueFileName(fileName);
-      final file = File('${_downloadsDirectory!.path}/$uniqueFileName');
+      final file = File('${_pdfManagerPlusDir!.path}/$uniqueFileName');
       
       await file.writeAsBytes(bytes);
       
@@ -423,7 +441,7 @@ class _ToolWebViewState extends State<ToolWebView> {
               children: [
                 Text('✅ $uniqueFileName kaydedildi'),
                 Text(
-                  'Konum: ${_getLocationName()}',
+                  'Konum: PDF Manager Plus klasörü',
                   style: TextStyle(fontSize: 12, color: Colors.grey[300]),
                 ),
               ],
@@ -457,7 +475,7 @@ class _ToolWebViewState extends State<ToolWebView> {
 
   Future<void> _saveImageFile(String fileName, String base64Data) async {
     try {
-      if (_downloadsDirectory == null) {
+      if (_pdfManagerPlusDir == null) {
         await _initializeDirectory();
       }
 
@@ -472,7 +490,7 @@ class _ToolWebViewState extends State<ToolWebView> {
       }
       
       final uniqueFileName = await _getUniqueFileName(finalFileName);
-      final file = File('${_downloadsDirectory!.path}/$uniqueFileName');
+      final file = File('${_pdfManagerPlusDir!.path}/$uniqueFileName');
       
       await file.writeAsBytes(bytes);
       
@@ -485,7 +503,7 @@ class _ToolWebViewState extends State<ToolWebView> {
               children: [
                 Text('✅ $uniqueFileName kaydedildi'),
                 Text(
-                  'Konum: ${_getLocationName()}',
+                  'Konum: PDF Manager Plus klasörü',
                   style: TextStyle(fontSize: 12, color: Colors.grey[300]),
                 ),
               ],
@@ -517,17 +535,8 @@ class _ToolWebViewState extends State<ToolWebView> {
     }
   }
 
-  String _getLocationName() {
-    final path = _downloadsDirectory?.path ?? '';
-    if (path.contains('Download')) {
-      return 'Download klasörü';
-    } else {
-      return 'Uygulama klasörü';
-    }
-  }
-
   Future<String> _getUniqueFileName(String fileName) async {
-    final file = File('${_downloadsDirectory!.path}/$fileName');
+    final file = File('${_pdfManagerPlusDir!.path}/$fileName');
     
     if (!await file.exists()) {
       return fileName;
@@ -542,7 +551,7 @@ class _ToolWebViewState extends State<ToolWebView> {
     do {
       newFileName = '${nameWithoutExt}_$counter$extension';
       counter++;
-    } while (await File('${_downloadsDirectory!.path}/$newFileName').exists());
+    } while (await File('${_pdfManagerPlusDir!.path}/$newFileName').exists());
     
     return newFileName;
   }
@@ -553,6 +562,123 @@ class _ToolWebViewState extends State<ToolWebView> {
       print('Dosya açma sonucu: ${result.message}');
     } catch (e) {
       print('Dosya açma hatası: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Dosya açılamadı: $e'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     }
+  }
+
+  Future<void> _openPdfManagerPlusFolder() async {
+    try {
+      if (_pdfManagerPlusDir != null && await _pdfManagerPlusDir!.exists()) {
+        // Klasör içeriğini göster
+        _showFolderContents();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('PDF Manager Plus klasörü henüz oluşturulmadı'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Klasör açma hatası: $e');
+    }
+  }
+
+  void _showFolderContents() {
+    if (_pdfManagerPlusDir == null) return;
+
+    final files = _pdfManagerPlusDir!.listSync();
+    final fileList = files.whereType<File>().toList();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('📁 PDF Manager Plus Klasörü'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: fileList.isEmpty
+              ? Center(child: Text('Henüz dosya yok'))
+              : ListView.builder(
+                  itemCount: fileList.length,
+                  itemBuilder: (context, index) {
+                    final file = fileList[index];
+                    final size = (file.lengthSync() / 1024).toStringAsFixed(1);
+                    final fileName = file.uri.pathSegments.last;
+                    
+                    // Dosya türüne göre ikon belirle
+                    IconData icon;
+                    if (fileName.toLowerCase().endsWith('.pdf')) {
+                      icon = Icons.picture_as_pdf;
+                    } else if (fileName.toLowerCase().endsWith('.png') || 
+                               fileName.toLowerCase().endsWith('.jpg') ||
+                               fileName.toLowerCase().endsWith('.jpeg')) {
+                      icon = Icons.image;
+                    } else {
+                      icon = Icons.insert_drive_file;
+                    }
+                    
+                    return ListTile(
+                      leading: Icon(icon, color: Colors.red),
+                      title: Text(fileName),
+                      subtitle: Text('$size KB'),
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _deleteFile(file),
+                      ),
+                      onTap: () => _openFile(file),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Kapat'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteFile(File file) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Dosyayı Sil'),
+        content: Text('${file.uri.pathSegments.last} silinsin mi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('İptal'),
+          ),
+          TextButton(
+            onPressed: () {
+              file.deleteSync();
+              Navigator.pop(context);
+              _showFolderContents(); // Listeyi yenile
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('🗑️ Dosya silindi'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            },
+            child: Text('Sil', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 }
