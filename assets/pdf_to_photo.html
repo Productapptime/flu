@@ -198,9 +198,53 @@
             progressContainer.style.display = 'block';
         }
 
+        // Görsel kaydetme fonksiyonu
         function saveImageToFlutter(imageData, fileName) {
             if (window.flutter_inappwebview) {
-                window.flutter_inappwebview.callHandler('saveFile', fileName, imageData);
+                window.flutter_inappwebview.callHandler('saveImage', fileName, imageData)
+                    .then(function(response) {
+                        console.log('Görsel kaydetme başarılı:', response);
+                        showStatus('✅ ' + fileName + ' kaydedildi!', 'success');
+                    })
+                    .catch(function(error) {
+                        console.error('Görsel kaydetme hatası:', error);
+                        showStatus('❌ ' + fileName + ' kaydedilemedi!', 'error');
+                    });
+            } else {
+                // Fallback: Tarayıcı indirme
+                const format = fileName.split('.').pop();
+                const link = document.createElement('a');
+                link.href = `data:image/${format};base64,${imageData}`;
+                link.download = fileName;
+                link.click();
+                showStatus('📥 ' + fileName + ' tarayıcıya indirildi!', 'info');
+            }
+        }
+
+        // Toplu görsel kaydetme fonksiyonu
+        function saveMultipleImagesToFlutter(images) {
+            if (window.flutter_inappwebview) {
+                window.flutter_inappwebview.callHandler('saveMultipleImages', images)
+                    .then(function(response) {
+                        console.log('Toplu görsel kaydetme başarılı:', response);
+                        showStatus('✅ ' + images.length + ' görsel kaydedildi!', 'success');
+                    })
+                    .catch(function(error) {
+                        console.error('Toplu görsel kaydetme hatası:', error);
+                        showStatus('❌ Görseller kaydedilemedi!', 'error');
+                    });
+            } else {
+                // Fallback: Tek tek indirme
+                images.forEach((image, index) => {
+                    setTimeout(() => {
+                        const format = image.fileName.split('.').pop();
+                        const link = document.createElement('a');
+                        link.href = `data:image/${format};base64,${image.data}`;
+                        link.download = image.fileName;
+                        link.click();
+                    }, index * 200);
+                });
+                showStatus('📥 ' + images.length + ' görsel tarayıcıya indirildi!', 'info');
             }
         }
 
@@ -242,7 +286,6 @@
                 downloadBtn.onclick = () => {
                     const fileName = `sayfa_${i}.${format}`;
                     saveImageToFlutter(dataURL.split(',')[1], fileName);
-                    showStatus(`Sayfa ${i} kaydedildi!`, 'success');
                 };
                 
                 imageContainer.appendChild(img);
@@ -294,20 +337,24 @@
             }
 
             showStatus('Tüm görseller kaydediliyor...', 'info');
-            
-            for (const image of convertedImages) {
-                saveImageToFlutter(image.data, image.fileName);
-                await new Promise(resolve => setTimeout(resolve, 100)); // Küçük gecikme
-            }
-            
-            showStatus(`✅ ${convertedImages.length} görsel kaydedildi!`, 'success');
+            saveMultipleImagesToFlutter(convertedImages);
         });
 
-        // Flutter handler kaydı
+        // Flutter handler kaydı - PDF → Görsel
         if (window.flutter_inappwebview) {
-            window.flutter_inappwebview.registerHandler('saveFile', function(data, callback) {
-                console.log('Dosya kaydedildi:', data);
+            // Görsel kaydetme için
+            window.flutter_inappwebview.registerHandler('saveImage', function(data, callback) {
+                console.log('🖼️ Görsel kaydediliyor:', data);
+                if (callback) callback({'success': true, 'message': 'Görsel başarıyla kaydedildi'});
             });
+
+            // Toplu görsel kaydetme için
+            window.flutter_inappwebview.registerHandler('saveMultipleImages', function(data, callback) {
+                console.log('🖼️ Toplu görsel kaydediliyor:', data);
+                if (callback) callback({'success': true, 'message': 'Görseller başarıyla kaydedildi'});
+            });
+
+            console.log('✅ PDF → Görsel handlerları kaydedildi');
         }
     </script>
 </body>
