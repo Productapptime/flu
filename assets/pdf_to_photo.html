@@ -180,7 +180,8 @@
     </div>
 
     <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+        // PDF.js worker'ını aynı dizinden yükle
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
 
         let convertedImages = [];
 
@@ -221,18 +222,31 @@
             }
         }
 
-        // Toplu görsel kaydetme fonksiyonu
-        function saveMultipleImagesToFlutter(images) {
+        // Toplu görsel kaydetme fonksiyonu (performans için sıralı)
+        async function saveMultipleImagesToFlutter(images) {
             if (window.flutter_inappwebview) {
-                window.flutter_inappwebview.callHandler('saveMultipleImages', images)
-                    .then(function(response) {
-                        console.log('Toplu görsel kaydetme başarılı:', response);
-                        showStatus('✅ ' + images.length + ' görsel kaydedildi!', 'success');
-                    })
-                    .catch(function(error) {
-                        console.error('Toplu görsel kaydetme hatası:', error);
-                        showStatus('❌ Görseller kaydedilemedi!', 'error');
-                    });
+                // Sıralı kaydetme (performans için)
+                for (let i = 0; i < images.length; i++) {
+                    const image = images[i];
+                    try {
+                        // Promise'i doğru şekilde oluştur
+                        await new Promise((resolve, reject) => {
+                            window.flutter_inappwebview.callHandler('saveImage', image.fileName, image.data)
+                                .then(resolve)
+                                .catch(reject);
+                        });
+                        showStatus(`✅ ${i + 1}/${images.length} - ${image.fileName} kaydedildi`, 'info');
+                        
+                        // Bir sonraki kayıt için kısa bekleme
+                        if (i < images.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                        }
+                    } catch (error) {
+                        console.error(`Görsel kaydetme hatası (${image.fileName}):`, error);
+                        showStatus(`❌ ${image.fileName} kaydedilemedi!`, 'error');
+                    }
+                }
+                showStatus(`✅ ${images.length} görsel kaydedildi!`, 'success');
             } else {
                 // Fallback: Tek tek indirme
                 images.forEach((image, index) => {
@@ -249,65 +263,81 @@
         }
 
         async function renderPDFtoImages(file, format, quality, scale) {
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            const imagesContainer = document.getElementById('imagesContainer');
-            
-            imagesContainer.innerHTML = '';
-            convertedImages = [];
-            showStatus('PDF dönüştürülüyor...', 'info');
-
-            const totalPages = pdf.numPages;
-            let completedPages = 0;
-
-            for (let i = 1; i <= totalPages; i++) {
-                const page = await pdf.getPage(i);
-                const viewport = page.getViewport({ scale: parseFloat(scale) });
-                const canvas = document.createElement("canvas");
-                const ctx = canvas.getContext("2d");
-                canvas.width = viewport.width;
-                canvas.height = viewport.height;
-
-                await page.render({ canvasContext: ctx, viewport }).promise;
-
-                const dataURL = canvas.toDataURL(`image/${format}`, parseFloat(quality));
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                const imagesContainer = document.getElementById('imagesContainer');
                 
-                // Görseli container'a ekle
-                const imageContainer = document.createElement('div');
-                imageContainer.className = 'image-container';
-                
-                const img = document.createElement('img');
-                img.src = dataURL;
-                img.alt = `Sayfa ${i}`;
-                
-                const downloadBtn = document.createElement('button');
-                downloadBtn.className = 'download-btn';
-                downloadBtn.textContent = 'Kaydet';
-                downloadBtn.onclick = () => {
-                    const fileName = `sayfa_${i}.${format}`;
-                    saveImageToFlutter(dataURL.split(',')[1], fileName);
-                };
-                
-                imageContainer.appendChild(img);
-                imageContainer.appendChild(downloadBtn);
-                imagesContainer.appendChild(imageContainer);
+                imagesContainer.innerHTML = '';
+                convertedImages = [];
+                showStatus('PDF dönüştürülüyor...', 'info');
 
-                // Görseli listeye ekle
-                convertedImages.push({
-                    data: dataURL.split(',')[1],
-                    fileName: `sayfa_${i}.${format}`,
-                    pageNumber: i
-                });
+                const totalPages = pdf.numPages;
+                let completedPages = 0;
 
-                completedPages++;
-                const progress = (completedPages / totalPages) * 100;
-                updateProgress(progress);
-                showStatus(`Sayfa ${i}/${totalPages} dönüştürüldü...`, 'info');
+                // Progress bar'ı göster
+                const progressContainer = document.querySelector('.progress');
+                progressContainer.style.display = 'block';
+
+                for (let i = 1; i <= totalPages; i++) {
+                    try {
+                        const page = await pdf.getPage(i);
+                        const viewport = page.getViewport({ scale: parseFloat(scale) });
+                        const canvas = document.createElement("canvas");
+                        const ctx = canvas.getContext("2d");
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+
+                        await page.render({ canvasContext: ctx, viewport }).promise;
+
+                        const dataURL = canvas.toDataURL(`image/${format}`, parseFloat(quality));
+                        
+                        // Görseli container'a ekle
+                        const imageContainer = document.createElement('div');
+                        imageContainer.className = 'image-container';
+                        
+                        const img = document.createElement('img');
+                        img.src = dataURL;
+                        img.alt = `Sayfa ${i}`;
+                        
+                        const downloadBtn = document.createElement('button');
+                        downloadBtn.className = 'download-btn';
+                        downloadBtn.textContent = 'Kaydet';
+                        downloadBtn.onclick = () => {
+                            const fileName = `sayfa_${i}.${format}`;
+                            saveImageToFlutter(dataURL.split(',')[1], fileName);
+                        };
+                        
+                        imageContainer.appendChild(img);
+                        imageContainer.appendChild(downloadBtn);
+                        imagesContainer.appendChild(imageContainer);
+
+                        // Görseli listeye ekle
+                        convertedImages.push({
+                            data: dataURL.split(',')[1],
+                            fileName: `sayfa_${i}.${format}`,
+                            pageNumber: i
+                        });
+
+                        completedPages++;
+                        const progress = (completedPages / totalPages) * 100;
+                        updateProgress(progress);
+                        showStatus(`Sayfa ${i}/${totalPages} dönüştürüldü...`, 'info');
+
+                    } catch (pageError) {
+                        console.error(`Sayfa ${i} dönüştürülürken hata:`, pageError);
+                        showStatus(`❌ Sayfa ${i} dönüştürülemedi`, 'error');
+                    }
+                }
+
+                updateProgress(100);
+                showStatus(`✅ ${completedPages}/${totalPages} sayfa başarıyla dönüştürüldü!`, 'success');
+                document.getElementById('batchDownloadBtn').disabled = false;
+
+            } catch (error) {
+                console.error('PDF dönüştürme hatası:', error);
+                showStatus('❌ PDF dönüştürülürken hata oluştu: ' + error.message, 'error');
             }
-
-            updateProgress(100);
-            showStatus(`✅ ${totalPages} sayfa başarıyla dönüştürüldü!`, 'success');
-            document.getElementById('batchDownloadBtn').disabled = false;
         }
 
         document.getElementById('convertBtn').addEventListener('click', async () => {
@@ -321,11 +351,20 @@
                 return;
             }
 
+            // Butonu devre dışı bırak
+            const convertBtn = document.getElementById('convertBtn');
+            convertBtn.disabled = true;
+            convertBtn.textContent = 'Dönüştürülüyor...';
+
             try {
                 await renderPDFtoImages(file, format, quality, scale);
             } catch (e) {
                 console.error(e);
                 showStatus('❌ Hata: ' + e.message, 'error');
+            } finally {
+                // Butonu tekrar aktif et
+                convertBtn.disabled = false;
+                convertBtn.textContent = 'PDF\'yi Görsele Dönüştür';
             }
         });
 
@@ -336,8 +375,20 @@
                 return;
             }
 
-            showStatus('Tüm görseller kaydediliyor...', 'info');
-            saveMultipleImagesToFlutter(convertedImages);
+            const batchBtn = document.getElementById('batchDownloadBtn');
+            batchBtn.disabled = true;
+            batchBtn.textContent = 'Kaydediliyor...';
+
+            try {
+                showStatus('Tüm görseller kaydediliyor...', 'info');
+                await saveMultipleImagesToFlutter(convertedImages);
+            } catch (error) {
+                console.error('Toplu kaydetme hatası:', error);
+                showStatus('❌ Görseller kaydedilirken hata oluştu!', 'error');
+            } finally {
+                batchBtn.disabled = false;
+                batchBtn.textContent = 'Tümünü Kaydet';
+            }
         });
 
         // Flutter handler kaydı - PDF → Görsel
@@ -346,12 +397,6 @@
             window.flutter_inappwebview.registerHandler('saveImage', function(data, callback) {
                 console.log('🖼️ Görsel kaydediliyor:', data);
                 if (callback) callback({'success': true, 'message': 'Görsel başarıyla kaydedildi'});
-            });
-
-            // Toplu görsel kaydetme için
-            window.flutter_inappwebview.registerHandler('saveMultipleImages', function(data, callback) {
-                console.log('🖼️ Toplu görsel kaydediliyor:', data);
-                if (callback) callback({'success': true, 'message': 'Görseller başarıyla kaydedildi'});
             });
 
             console.log('✅ PDF → Görsel handlerları kaydedildi');
