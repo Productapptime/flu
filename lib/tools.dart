@@ -159,7 +159,7 @@ class _ToolWebViewState extends State<ToolWebView> {
   bool _loaded = false;
 
   String _getWebViewUrl() {
-    return 'file:///android_asset/flutter_assets/assets/web/${widget.htmlFile}?dark=${widget.dark}';
+    return 'file:///android_asset/flutter_assets/assets/${widget.htmlFile}?dark=${widget.dark}';
   }
 
   @override
