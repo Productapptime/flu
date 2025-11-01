@@ -31,7 +31,7 @@ class _ToolsPageState extends State<ToolsPage> {
               Icons.merge, 'merge.html'),
           _buildToolCard('Sayfa Düzenle', 'Sayfaları sırala veya düzenle',
               Icons.edit_document, 'reorder_subtraction.html'),
-          _buildToolCard('OCR (Metin Çıkar)', 'PDF veya görselden metin al',
+          _buildToolCard('Metin Çıkar (OCR)', 'PDF veya görselden metin al',
               Icons.text_fields, 'ocr.html'),
           _buildToolCard('PDF Ayır', 'PDF\'yi sayfalara ayır', Icons.call_split,
               'split.html'),
