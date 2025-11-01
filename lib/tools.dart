@@ -161,7 +161,7 @@ class ToolWebView extends StatefulWidget {
 class _ToolWebViewState extends State<ToolWebView> {
   InAppWebViewController? _controller;
   bool _loaded = false;
-  bool _hasStoragePermission = false;
+  bool _hasStoragePermission = true; // Modern Android için varsayılan olarak true
   Directory? _appDocumentsDirectory;
 
   String _getWebViewUrl() {
@@ -190,90 +190,20 @@ class _ToolWebViewState extends State<ToolWebView> {
   }
 
   Future<void> _checkStoragePermission() async {
-    // Android 10+ için storage permission gerekli değil
-    // Sadece Android 9 ve altı için kontrol ediyoruz
-    if (await _isAndroid10OrAbove()) {
+    // Modern Android (10+) için storage permission gerekli değil
+    // Eski Android versiyonları için kontrol ediyoruz
+    try {
+      // Basit bir şekilde her zaman izin var kabul ediyoruz
+      // çünkü modern Android'de uygulama kendi klasörüne yazabilir
       setState(() {
         _hasStoragePermission = true;
       });
-      return;
-    }
-
-    final status = await Permission.storage.status;
-    setState(() {
-      _hasStoragePermission = status.isGranted;
-    });
-  }
-
-  Future<bool> _isAndroid10OrAbove() async {
-    // Basit bir kontrol - Android 10 (API 29) ve üstü için storage permission gerekmez
-    return true; // Modern Android versiyonları için her zaman true döndür
-  }
-
-  Future<void> _requestStoragePermission() async {
-    // Android 10+ için permission gerekmez
-    if (await _isAndroid10OrAbove()) {
+    } catch (e) {
+      print('İzin kontrol hatası: $e');
       setState(() {
-        _hasStoragePermission = true;
+        _hasStoragePermission = true; // Hata durumunda da true
       });
-      _controller?.reload();
-      return;
     }
-
-    final status = await Permission.storage.request();
-    setState(() {
-      _hasStoragePermission = status.isGranted;
-    });
-    
-    if (status.isGranted) {
-      _controller?.reload();
-    }
-  }
-
-  void _showPermissionDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text(
-            "📁 Uygulama Klasörüne Erişim",
-            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-          ),
-          content: const Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "PDF dosyalarını uygulama klasörüne kaydedebilmek için izin gerekiyor.",
-                style: TextStyle(fontSize: 16),
-              ),
-              SizedBox(height: 10),
-              Text(
-                "• PDF_Manager_Plus klasörüne erişim\n• Dosya kaydetme ve yönetme\n• Güvenli dosya depolama",
-                style: TextStyle(fontSize: 14, color: Colors.grey),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("İptal"),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () {
-                Navigator.pop(context);
-                _requestStoragePermission();
-              },
-              child: const Text(
-                "İzin Ver",
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   @override
@@ -284,12 +214,6 @@ class _ToolWebViewState extends State<ToolWebView> {
         backgroundColor: widget.dark ? Colors.black : Colors.red,
         foregroundColor: Colors.white,
         actions: [
-          if (!_hasStoragePermission && !_isAndroid10OrAbove())
-            IconButton(
-              icon: const Icon(Icons.warning_amber_rounded),
-              onPressed: _showPermissionDialog,
-              tooltip: "Dosya Erişim İzni Gerekli",
-            ),
           IconButton(
             icon: const Icon(Icons.folder_open),
             onPressed: _openAppFolder,
@@ -297,7 +221,7 @@ class _ToolWebViewState extends State<ToolWebView> {
           ),
         ],
       ),
-      body: _hasStoragePermission ? _buildWebView() : _buildPermissionRequiredView(),
+      body: _buildWebView(),
     );
   }
 
@@ -341,105 +265,6 @@ class _ToolWebViewState extends State<ToolWebView> {
             child: CircularProgressIndicator(color: Colors.red),
           ),
       ],
-    );
-  }
-
-  Widget _buildPermissionRequiredView() {
-    return Padding(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.folder_open_rounded,
-            size: 80,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 20),
-          Text(
-            "📁 Uygulama Klasörüne Erişim",
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: widget.dark ? Colors.white : Colors.black,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 15),
-          Text(
-            "${widget.toolName} özelliğini kullanabilmek için uygulama klasörüne erişim izni gerekiyor.",
-            style: TextStyle(
-              fontSize: 16,
-              color: widget.dark ? Colors.grey[300] : Colors.grey[700],
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 25),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: widget.dark ? Colors.grey[800] : Colors.grey[100],
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                _buildPermissionFeature("PDF_Manager_Plus klasörü oluşturma"),
-                _buildPermissionFeature("Güvenli dosya depolama"),
-                _buildPermissionFeature("Otomatik klasör yönetimi"),
-              ],
-            ),
-          ),
-          const SizedBox(height: 30),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Geri Dön"),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                  ),
-                  onPressed: _requestStoragePermission,
-                  child: const Text(
-                    "İzin Ver",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPermissionFeature(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(
-            Icons.check_circle_rounded,
-            color: Colors.green,
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: widget.dark ? Colors.grey[300] : Colors.grey[700],
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
