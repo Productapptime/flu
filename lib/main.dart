@@ -95,8 +95,9 @@ class _HomePageState extends State<HomePage> {
     _baseDir = await getApplicationDocumentsDirectory();
     _currentPath = _baseDir!.path;
     
-    // PDF_Manager_Plus klasörünü oluştur
-    _pdfManagerPlusDir = Directory('${_baseDir!.path}/PDF_Manager_Plus');
+    // PDF_Manager_Plus klasörünü Download klasörüne taşı
+    final downloadsDir = await getDownloadsDirectory();
+    _pdfManagerPlusDir = Directory('${downloadsDir!.path}/PDF_Manager_Plus');
     if (!await _pdfManagerPlusDir!.exists()) {
       await _pdfManagerPlusDir!.create(recursive: true);
     }
@@ -122,9 +123,10 @@ class _HomePageState extends State<HomePage> {
       }
     }
     
-    // PDF_Manager_Plus klasörünü her zaman ekle
+    // PDF_Manager_Plus klasörünü her zaman ekle (Download klasöründe olsa bile göster)
     if (_pdfManagerPlusDir != null && await _pdfManagerPlusDir!.exists()) {
-      if (!folderPaths.contains(_pdfManagerPlusDir!.path)) {
+      // Sadece benzersiz olarak ekle
+      if (!folderPaths.any((folder) => folder == _pdfManagerPlusDir!.path)) {
         folderPaths.add(_pdfManagerPlusDir!.path);
       }
     }
@@ -346,7 +348,7 @@ class _HomePageState extends State<HomePage> {
                   (isPdfManagerPlus ? 'PDF_Manager_Plus' : p.relative(folder, from: _baseDir!.path))
                 ),
                 subtitle: isRoot ? const Text('Move to main directory') : 
-                         (isPdfManagerPlus ? const Text('Uygulama Dosyaları') : null),
+                         (isPdfManagerPlus ? const Text('Download/PDF_Manager_Plus') : null),
                 onTap: () async {
                   final fileName = p.basename(filePath);
                   final newPath = p.join(folder, fileName);
@@ -969,7 +971,7 @@ class _HomePageState extends State<HomePage> {
               color: Colors.red,
             ),
           ),
-          subtitle: Text('$itemCount öğe • $folderSize • Uygulama Dosyaları'),
+          subtitle: Text('$itemCount öğe • $folderSize • Download/PDF_Manager_Plus'),
           trailing: _selectionMode ? null : PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (value) {
