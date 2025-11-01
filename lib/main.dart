@@ -1,29 +1,34 @@
+// lib/main.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:path/path.dart' as p;
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Permission.storage.request();
-  runApp(const PdfManagerPlusApp());
+  runApp(const PdfManagerApp());
 }
 
-class PdfManagerPlusApp extends StatefulWidget {
-  const PdfManagerPlusApp({super.key});
+class PdfManagerApp extends StatefulWidget {
+  const PdfManagerApp({super.key});
 
   @override
-  State<PdfManagerPlusApp> createState() => _PdfManagerPlusAppState();
+  State<PdfManagerApp> createState() => _PdfManagerAppState();
 }
 
-class _PdfManagerPlusAppState extends State<PdfManagerPlusApp> {
-  ThemeMode _themeMode = ThemeMode.system;
+class _PdfManagerAppState extends State<PdfManagerApp> {
+  ThemeMode _themeMode = ThemeMode.light;
 
-  void _toggleTheme(bool isDark) {
-    setState(() => _themeMode = isDark ? ThemeMode.dark : ThemeMode.light);
+  void toggleTheme(bool dark) {
+    setState(() {
+      _themeMode = dark ? ThemeMode.dark : ThemeMode.light;
+    });
   }
 
   @override
@@ -31,298 +36,246 @@ class _PdfManagerPlusAppState extends State<PdfManagerPlusApp> {
     return MaterialApp(
       title: 'PDF Manager Plus',
       theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.indigo,
+        primarySwatch: Colors.red,
+        brightness: Brightness.light,
       ),
       darkTheme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.indigo,
+        primarySwatch: Colors.red,
         brightness: Brightness.dark,
       ),
       themeMode: _themeMode,
       debugShowCheckedModeBanner: false,
-      home: PdfHomePage(
-        isDark: _themeMode == ThemeMode.dark,
-        onThemeToggle: _toggleTheme,
+      home: HomePage(
+        dark: _themeMode == ThemeMode.dark,
+        onThemeChanged: toggleTheme,
       ),
     );
   }
 }
 
-class PdfHomePage extends StatefulWidget {
-  final bool isDark;
-  final Function(bool) onThemeToggle;
+class HomePage extends StatefulWidget {
+  final bool dark;
+  final Function(bool) onThemeChanged;
 
-  const PdfHomePage({super.key, required this.isDark, required this.onThemeToggle});
+  const HomePage({
+    super.key,
+    required this.dark,
+    required this.onThemeChanged,
+  });
 
   @override
-  State<PdfHomePage> createState() => _PdfHomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _PdfHomePageState extends State<PdfHomePage> {
-  List<String> pdfFiles = [];
-  List<String> favorites = [];
-  List<String> recents = [];
-  int currentIndex = 0;
+class _HomePageState extends State<HomePage> {
+  int _selectedIndex = 0;
+  bool _selectionMode = false;
+  List<String> _selectedFiles = [];
+  List<String> _allFiles = [];
+  List<String> _favorites = [];
+  List<String> _recent = [];
+  String _searchQuery = '';
+  String _sortMode = 'Name';
+  Directory? _baseDir;
 
   @override
   void initState() {
     super.initState();
-    _loadLists();
+    _initDir();
+  }
+
+  Future<void> _initDir() async {
+    _baseDir = await getApplicationDocumentsDirectory();
+    await _loadLists();
+    await _scanAllFiles();
+  }
+
+  Future<void> _scanAllFiles() async {
+    if (_baseDir == null) return;
+    final List<String> pdfPaths = [];
+    final dir = Directory(_baseDir!.path);
+    final entities = dir.listSync(recursive: true);
+    for (var e in entities) {
+      if (e is File && e.path.toLowerCase().endsWith('.pdf')) {
+        pdfPaths.add(e.path);
+      }
+    }
+    setState(() {
+      _allFiles = pdfPaths;
+    });
   }
 
   Future<void> _loadLists() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      pdfFiles = prefs.getStringList('pdfFiles') ?? [];
-      favorites = prefs.getStringList('favorites') ?? [];
-      recents = prefs.getStringList('recents') ?? [];
+      _favorites = prefs.getStringList('favorites') ?? [];
+      _recent = prefs.getStringList('recent') ?? [];
     });
   }
 
   Future<void> _saveLists() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('pdfFiles', pdfFiles);
-    await prefs.setStringList('favorites', favorites);
-    await prefs.setStringList('recents', recents);
+    await prefs.setStringList('favorites', _favorites);
+    await prefs.setStringList('recent', _recent);
   }
 
-  Future<void> _importPdf() async {
-    final status = await Permission.storage.request();
-    if (!status.isGranted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Depolama izni gerekli.")),
-      );
-      return;
-    }
-
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
-    if (result != null && result.files.single.path != null) {
-      final path = result.files.single.path!;
-      if (!pdfFiles.contains(path)) {
-        setState(() => pdfFiles.add(path));
-        await _saveLists();
-      }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF eklendi: ${result.files.single.name}')));
+  Future<void> _importFile() async {
+    final res = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+    if (res != null && res.files.single.path != null) {
+      final path = res.files.single.path!;
+      final imported = File(path);
+      final newPath = p.join(_baseDir!.path, p.basename(path));
+      await imported.copy(newPath);
+      await _scanAllFiles();
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('File imported successfully')));
     }
   }
 
-  void _openPdf(String path) async {
-    if (!recents.contains(path)) {
-      setState(() {
-        recents.insert(0, path);
-      });
+  void _openViewer(String path) async {
+    final file = File(path);
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ViewerScreen(
+          file: file,
+          fileName: p.basename(path),
+          dark: widget.dark,
+        ),
+      ),
+    );
+    if (!_recent.contains(path)) {
+      _recent.insert(0, path);
       await _saveLists();
     }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PdfViewerScreen(pdfPath: path),
-      ),
-    );
   }
 
   void _toggleFavorite(String path) async {
-    setState(() {
-      favorites.contains(path) ? favorites.remove(path) : favorites.add(path);
-    });
+    if (_favorites.contains(path)) {
+      _favorites.remove(path);
+    } else {
+      _favorites.add(path);
+    }
     await _saveLists();
+    setState(() {});
   }
 
-  Widget _buildPdfList(List<String> list) {
-    if (list.isEmpty) {
-      return const Center(child: Text("Henüz PDF bulunmuyor."));
-    }
-
-    return ListView.builder(
-      itemCount: list.length,
-      itemBuilder: (context, i) {
-        final path = list[i];
-        final name = path.split('/').last;
-        final isFav = favorites.contains(path);
-        return ListTile(
-          leading: const Icon(Icons.picture_as_pdf, color: Colors.indigo),
-          title: Text(name),
-          trailing: IconButton(
-            icon: Icon(isFav ? Icons.favorite : Icons.favorite_border, color: isFav ? Colors.red : null),
-            onPressed: () => _toggleFavorite(path),
-          ),
-          onTap: () => _openPdf(path),
-        );
-      },
-    );
-  }
-
-  Widget get _activeBody {
-    switch (currentIndex) {
-      case 1:
-        return _buildPdfList(recents);
-      case 2:
-        return _buildPdfList(favorites);
-      default:
-        return _buildPdfList(pdfFiles);
-    }
-  }
-
-  Widget _buildDrawer() => Drawer(
-        child: ListView(
-          children: [
-            DrawerHeader(
-              decoration: const BoxDecoration(color: Colors.indigo),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'PDF Manager Plus',
-                  style: const TextStyle(color: Colors.white, fontSize: 22),
-                ),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.upload_file),
-              title: const Text("PDF Ekle"),
-              onTap: () {
-                Navigator.pop(context);
-                _importPdf();
-              },
-            ),
-            SwitchListTile(
-              title: const Text('Karanlık Mod'),
-              secondary: const Icon(Icons.brightness_6),
-              value: widget.isDark,
-              onChanged: widget.onThemeToggle,
-            ),
-            ListTile(
-              leading: const Icon(Icons.info_outline),
-              title: const Text("Hakkında"),
-              onTap: () => showAboutDialog(
-                context: context,
-                applicationName: 'PDF Manager Plus',
-                applicationVersion: '1.0.0',
-                children: const [
-                  Text("Cihazdan PDF import edip PDF.js (InAppWebView) ile görüntüler."),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(["Tüm Dosyalar", "Son Açılanlar", "Favoriler"][currentIndex]),
-        actions: [
-          IconButton(onPressed: _importPdf, icon: const Icon(Icons.add)),
-        ],
-      ),
-      drawer: _buildDrawer(),
-      body: _activeBody,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: currentIndex,
-        onTap: (i) => setState(() => currentIndex = i),
-        selectedItemColor: Colors.indigo,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.folder), label: "Tümü"),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: "Son"),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: "Favori"),
-        ],
-      ),
-    );
-  }
-}
-
-class PdfViewerScreen extends StatelessWidget {
-  final String pdfPath;
-
-  const PdfViewerScreen({super.key, required this.pdfPath});
-
-  @override
-  Widget build(BuildContext context) {
-    final pdfUrl = Uri.file(pdfPath).toString();
-    final viewerPath = "assets/web/viewer.html?file=$pdfUrl";
-
-    return Scaffold(
-      appBar: AppBar(title: Text(pdfPath.split('/').last)),
-      body: InAppWebView(
-        initialFile: viewerPath,
-        initialSettings: InAppWebViewSettings(
-          javaScriptEnabled: true,
-          allowFileAccessFromFileURLs: true,
-          allowUniversalAccessFromFileURLs: true,
-        ),
-      ),
-    );
-  }
-}    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PdfViewerScreen(pdfPath: path),
-      ),
-    );
-  }
-
-  void _toggleFavorite(String path) async {
-    setState(() {
-      favorites.contains(path)
-          ? favorites.remove(path)
-          : favorites.add(path);
-    });
-    await _saveLists();
-  }
-
-  Widget _buildPdfList(List<String> list) {
-    if (list.isEmpty) {
-      return const Center(
-        child: Text("Henüz PDF bulunmuyor."),
-      );
-    }
-
-    return ListView.builder(
-      itemCount: list.length,
-      itemBuilder: (context, index) {
-        final path = list[index];
-        final name = path.split('/').last;
-        final isFav = favorites.contains(path);
-
-        return ListTile(
-          leading: const Icon(Icons.picture_as_pdf, color: Colors.indigo),
-          title: Text(name),
-          trailing: IconButton(
-            icon: Icon(
-              isFav ? Icons.favorite : Icons.favorite_border,
-              color: isFav ? Colors.red : null,
-            ),
-            onPressed: () => _toggleFavorite(path),
-          ),
-          onTap: () => _openPdf(path),
-        );
-      },
-    );
-  }
-
-  Widget get _activeBody {
+  List<String> _getCurrentList() {
+    List<String> base;
     switch (_selectedIndex) {
+      case 0:
+        base = _allFiles;
+        break;
       case 1:
-        return _buildPdfList(recents);
+        base = _recent;
+        break;
       case 2:
-        return _buildPdfList(favorites);
+        base = _favorites;
+        break;
       default:
-        return _buildPdfList(allFiles);
+        base = [];
     }
+
+    if (_searchQuery.isNotEmpty) {
+      base = base
+          .where((path) =>
+              path.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+              p.basename(path)
+                  .toLowerCase()
+                  .contains(_searchQuery.toLowerCase()))
+          .toList();
+    }
+
+    if (_sortMode == 'Size') {
+      base.sort((a, b) =>
+          File(b).lengthSync().compareTo(File(a).lengthSync()));
+    } else if (_sortMode == 'Date') {
+      base.sort((a, b) =>
+          File(b).lastModifiedSync().compareTo(File(a).lastModifiedSync()));
+    } else {
+      base.sort((a, b) => p.basename(a).compareTo(p.basename(b)));
+    }
+
+    return base;
+  }
+
+  Future<void> _createFolder() async {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Create Folder'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'Folder name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = controller.text.trim();
+              if (name.isEmpty || _baseDir == null) return;
+              final newFolder = Directory(p.join(_baseDir!.path, name));
+              if (!(await newFolder.exists())) {
+                await newFolder.create(recursive: true);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Folder "$name" created')),
+                );
+                await _scanAllFiles();
+              }
+              if (mounted) Navigator.pop(context);
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final files = _getCurrentList();
+    final titles = ['All Files', 'Recent', 'Favorites', 'Tools'];
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(["All Files", "Recent", "Favorites"][_selectedIndex]),
+        title: Text(titles[_selectedIndex]),
         actions: [
           IconButton(
-            icon: const Icon(Icons.upload_file),
-            tooltip: "PDF Import",
-            onPressed: _importPdf,
+            icon: const Icon(Icons.search),
+            onPressed: () async {
+              final text = await showSearch<String>(
+                context: context,
+                delegate: FileSearchDelegate(initial: _searchQuery),
+              );
+              if (text != null) setState(() => _searchQuery = text);
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.create_new_folder_outlined),
+            onPressed: _createFolder,
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.sort),
+            onSelected: (val) => setState(() => _sortMode = val),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'Name', child: Text('Sort by Name')),
+              PopupMenuItem(value: 'Size', child: Text('Sort by Size')),
+              PopupMenuItem(value: 'Date', child: Text('Sort by Date')),
+            ],
+          ),
+          IconButton(
+            icon: Icon(
+              _selectionMode ? Icons.close : Icons.select_all_outlined,
+            ),
+            onPressed: () =>
+                setState(() => _selectionMode = !_selectionMode),
           ),
         ],
       ),
@@ -331,22 +284,9 @@ class PdfViewerScreen extends StatelessWidget {
           padding: EdgeInsets.zero,
           children: [
             const DrawerHeader(
-              decoration: BoxDecoration(color: Colors.indigo),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'PDF Manager Plus',
-                  style: TextStyle(color: Colors.white, fontSize: 20),
-                ),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.upload_file),
-              title: const Text('Import PDF'),
-              onTap: () {
-                Navigator.pop(context);
-                _importPdf();
-              },
+              decoration: BoxDecoration(color: Colors.red),
+              child: Text('PDF Manager Menu',
+                  style: TextStyle(color: Colors.white, fontSize: 18)),
             ),
             ListTile(
               leading: const Icon(Icons.info_outline),
@@ -354,52 +294,164 @@ class PdfViewerScreen extends StatelessWidget {
               onTap: () => showAboutDialog(
                 context: context,
                 applicationName: 'PDF Manager Plus',
-                applicationVersion: '1.0.0',
-                children: const [
-                  Text("Cihazdan PDF import edip PDF.js ile açar."),
-                ],
+                applicationVersion: '4.1',
+                children: const [Text('Developed by Arvin')],
               ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.upload_file),
+              title: const Text('Import File'),
+              onTap: _importFile,
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.brightness_6),
+              title: const Text('Dark / Light Mode'),
+              value: widget.dark,
+              onChanged: widget.onThemeChanged,
+            ),
+            const ListTile(
+              leading: Icon(Icons.language),
+              title: Text('Language (Coming Soon)'),
             ),
           ],
         ),
       ),
-      body: _activeBody,
+      body: ListView.builder(
+        itemCount: files.length,
+        itemBuilder: (_, i) {
+          final f = File(files[i]);
+          final sizeMb = (f.lengthSync() / 1024 / 1024).toStringAsFixed(2);
+          final modified =
+              DateFormat('dd.MM.yyyy HH:mm').format(f.lastModifiedSync());
+          return ListTile(
+            leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+            title: Text(p.basename(files[i])),
+            subtitle: Text('$sizeMb MB • $modified'),
+            trailing: IconButton(
+              icon: Icon(
+                _favorites.contains(files[i])
+                    ? Icons.favorite
+                    : Icons.favorite_border,
+                color: Colors.red,
+              ),
+              onPressed: () => _toggleFavorite(files[i]),
+            ),
+            onTap: () {
+              if (_selectionMode) {
+                setState(() {
+                  _selectedFiles.contains(files[i])
+                      ? _selectedFiles.remove(files[i])
+                      : _selectedFiles.add(files[i]);
+                });
+              } else {
+                _openViewer(files[i]);
+              }
+            },
+          );
+        },
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        selectedItemColor: Colors.indigo,
+        selectedItemColor: Colors.red,
+        unselectedItemColor: Colors.grey,
         onTap: (i) => setState(() => _selectedIndex = i),
         items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.folder), label: "All Files"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.access_time), label: "Recent"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.favorite), label: "Favorites"),
+          BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'All'),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Recent'),
+          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Favs'),
+          BottomNavigationBarItem(icon: Icon(Icons.build), label: 'Tools'),
         ],
       ),
     );
   }
 }
 
-class PdfViewerScreen extends StatelessWidget {
-  final String pdfPath;
-  const PdfViewerScreen({super.key, required this.pdfPath});
+class FileSearchDelegate extends SearchDelegate<String> {
+  final String initial;
+  FileSearchDelegate({required this.initial}) {
+    query = initial;
+  }
+
+  @override
+  List<Widget>? buildActions(BuildContext context) =>
+      [IconButton(icon: const Icon(Icons.clear), onPressed: () => query = '')];
+
+  @override
+  Widget? buildLeading(BuildContext context) =>
+      IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, query));
+
+  @override
+  Widget buildResults(BuildContext context) => Container();
+
+  @override
+  Widget buildSuggestions(BuildContext context) => Container();
+}
+
+class ViewerScreen extends StatefulWidget {
+  final File file;
+  final String fileName;
+  final bool dark;
+
+  const ViewerScreen({
+    super.key,
+    required this.file,
+    required this.fileName,
+    required this.dark,
+  });
+
+  @override
+  State<ViewerScreen> createState() => _ViewerScreenState();
+}
+
+class _ViewerScreenState extends State<ViewerScreen> {
+  InAppWebViewController? _controller;
+  bool _loaded = false;
+
+  String _viewerUrl() {
+    final fileUri = Uri.file(widget.file.path).toString();
+    final dark = widget.dark ? 'true' : 'false';
+    return 'file:///android_asset/flutter_assets/assets/web/viewer.html?file=${Uri.encodeComponent(fileUri)}&dark=$dark';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final pdfUrl = Uri.file(pdfPath).toString();
-    final viewerUrl = "assets/web/viewer.html?file=$pdfUrl";
-
     return Scaffold(
-      appBar: AppBar(title: Text(pdfPath.split('/').last)),
-      body: InAppWebView(
-        initialFile: viewerUrl,
-        initialSettings: InAppWebViewSettings(
-          javaScriptEnabled: true,
-          allowFileAccessFromFileURLs: true,
-          allowUniversalAccessFromFileURLs: true,
-          cacheEnabled: true,
-        ),
+      appBar: AppBar(
+        title: Text(widget.fileName),
+        backgroundColor: widget.dark ? Colors.black : Colors.red,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.print),
+            onPressed: () async {
+              final bytes = await widget.file.readAsBytes();
+              await Printing.layoutPdf(onLayout: (_) => bytes);
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () => Share.shareXFiles([XFile(widget.file.path)]),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          InAppWebView(
+            initialUrlRequest: URLRequest(url: WebUri(_viewerUrl())),
+            initialSettings: InAppWebViewSettings(
+              javaScriptEnabled: true,
+              allowFileAccess: true,
+              allowFileAccessFromFileURLs: true,
+              allowUniversalAccessFromFileURLs: true,
+              supportZoom: true,
+              useHybridComposition: true,
+            ),
+            onWebViewCreated: (controller) => _controller = controller,
+            onLoadStop: (_, __) => setState(() => _loaded = true),
+          ),
+          if (!_loaded)
+            const Center(child: CircularProgressIndicator(color: Colors.red)),
+        ],
       ),
     );
   }
