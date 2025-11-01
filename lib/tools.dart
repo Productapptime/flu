@@ -94,8 +94,8 @@ class _ToolsPageState extends State<ToolsPage> {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () async {
-          // Önce izinleri kontrol et
-          final hasPermission = await _checkAndRequestPermissions(context);
+          // Tüm dosya erişim iznini kontrol et
+          final hasPermission = await _checkAllFilesAccessPermission();
           if (hasPermission) {
             Navigator.push(
               context,
@@ -107,6 +107,9 @@ class _ToolsPageState extends State<ToolsPage> {
                 ),
               ),
             );
+          } else {
+            // İzin yoksa, izin iste
+            await _requestAllFilesAccessPermission(context);
           }
         },
         child: Container(
@@ -146,32 +149,44 @@ class _ToolsPageState extends State<ToolsPage> {
     );
   }
 
-  Future<bool> _checkAndRequestPermissions(BuildContext context) async {
+  Future<bool> _checkAllFilesAccessPermission() async {
     try {
-      // Depolama izinlerini kontrol et
-      var storageStatus = await Permission.storage.status;
-      var manageStorageStatus = await Permission.manageExternalStorage.status;
+      // Tüm dosya erişim iznini kontrol et
+      final status = await Permission.manageExternalStorage.status;
+      return status.isGranted;
+    } catch (e) {
+      print('İzin kontrol hatası: $e');
+      return false;
+    }
+  }
 
-      // İzin verilmediyse iste
-      if (!storageStatus.isGranted) {
-        storageStatus = await Permission.storage.request();
-      }
-
-      // Android 11+ için yönetilen depolama izni
-      if (!manageStorageStatus.isGranted && await Permission.manageExternalStorage.isRestricted) {
-        manageStorageStatus = await Permission.manageExternalStorage.request();
-      }
-
-      // İzinler reddedildiyse kullanıcıyı bilgilir
-      if (!storageStatus.isGranted) {
+  Future<void> _requestAllFilesAccessPermission(BuildContext context) async {
+    try {
+      // Tüm dosya erişim iznini iste
+      final status = await Permission.manageExternalStorage.request();
+      
+      if (status.isGranted) {
+        // İzin verildi, sayfayı aç
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ToolWebView(
+              toolName: 'PDF Birleştir', // Bu dynamic olmalı ama basit tutuyorum
+              htmlFile: 'merge.html',
+              dark: widget.dark,
+            ),
+          ),
+        );
+      } else {
+        // İzin reddedildi, ayarlara yönlendir
         if (mounted) {
           await showDialog(
             context: context,
             builder: (context) => AlertDialog(
-              title: const Text('Depolama İzni Gerekli'),
+              title: const Text('Tüm Dosya Erişim İzni Gerekli'),
               content: const Text(
-                'PDF dosyalarını kaydetmek için depolama iznine ihtiyacımız var. '
-                'Lütfen ayarlardan izin verin.',
+                'PDF dosyalarını Download klasörüne kaydetmek için "Tüm dosya erişim izni"ne ihtiyacımız var.\n\n'
+                'Lütfen ayarlardan "Bu uygulamaya tüm dosya erişimine izin ver" seçeneğini açın.',
               ),
               actions: [
                 TextButton(
@@ -179,20 +194,19 @@ class _ToolsPageState extends State<ToolsPage> {
                   child: const Text('İptal'),
                 ),
                 TextButton(
-                  onPressed: () => openAppSettings(),
-                  child: const Text('Ayarlar'),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    openAppSettings();
+                  },
+                  child: const Text('Ayarlara Git'),
                 ),
               ],
             ),
           );
         }
-        return false;
       }
-
-      return storageStatus.isGranted;
     } catch (e) {
-      print('İzin kontrol hatası: $e');
-      return false;
+      print('İzin isteme hatası: $e');
     }
   }
 }
@@ -217,7 +231,6 @@ class _ToolWebViewState extends State<ToolWebView> {
   InAppWebViewController? _controller;
   bool _loaded = false;
   Directory? _downloadsDirectory;
-  bool _permissionsGranted = false;
 
   String _getWebViewUrl() {
     return 'file:///android_asset/flutter_assets/assets/${widget.htmlFile}?dark=${widget.dark}';
@@ -226,12 +239,7 @@ class _ToolWebViewState extends State<ToolWebView> {
   @override
   void initState() {
     super.initState();
-    _initializeApp();
-  }
-
-  Future<void> _initializeApp() async {
-    await _initializeDirectory();
-    await _checkPermissions();
+    _initializeDirectory();
   }
 
   Future<void> _initializeDirectory() async {
@@ -244,61 +252,11 @@ class _ToolWebViewState extends State<ToolWebView> {
         _downloadsDirectory = Directory('/storage/emulated/0/Download');
       }
       
-      // Klasör yoksa oluştur
-      if (!await _downloadsDirectory!.exists()) {
-        await _downloadsDirectory!.create(recursive: true);
-      }
-      
       print('Downloads dizini: ${_downloadsDirectory!.path}');
     } catch (e) {
       print('Klasör hatası: $e');
       // Fallback: Uygulama dizini
       _downloadsDirectory = await getApplicationDocumentsDirectory();
-    }
-  }
-
-  Future<void> _checkPermissions() async {
-    try {
-      // Depolama izinlerini kontrol et
-      var storageStatus = await Permission.storage.status;
-      var manageStorageStatus = await Permission.manageExternalStorage.status;
-
-      setState(() {
-        _permissionsGranted = storageStatus.isGranted;
-      });
-
-      if (!_permissionsGranted) {
-        print('İzinler henüz verilmedi');
-      }
-    } catch (e) {
-      print('İzin kontrol hatası: $e');
-    }
-  }
-
-  Future<bool> _requestPermissions() async {
-    try {
-      // Depolama izinlerini iste
-      var storageStatus = await Permission.storage.status;
-      if (!storageStatus.isGranted) {
-        storageStatus = await Permission.storage.request();
-      }
-      
-      // Yönetilen depolama izni (Android 11+)
-      if (await Permission.manageExternalStorage.isRestricted) {
-        var manageStatus = await Permission.manageExternalStorage.status;
-        if (!manageStatus.isGranted) {
-          manageStatus = await Permission.manageExternalStorage.request();
-        }
-      }
-      
-      setState(() {
-        _permissionsGranted = storageStatus.isGranted;
-      });
-      
-      return storageStatus.isGranted;
-    } catch (e) {
-      print('İzin hatası: $e');
-      return false;
     }
   }
 
@@ -309,18 +267,6 @@ class _ToolWebViewState extends State<ToolWebView> {
         title: Text(widget.toolName),
         backgroundColor: widget.dark ? Colors.black : Colors.red,
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.download),
-            onPressed: _showDownloadInfo,
-            tooltip: "Download Klasörünü Aç",
-          ),
-          IconButton(
-            icon: const Icon(Icons.security),
-            onPressed: _showPermissionDialog,
-            tooltip: "İzinleri Kontrol Et",
-          ),
-        ],
       ),
       body: _buildWebView(),
     );
@@ -349,20 +295,19 @@ class _ToolWebViewState extends State<ToolWebView> {
                 if (args.length >= 2) {
                   final fileName = args[0] as String;
                   final base64Data = args[1] as String;
-                  await _saveFileWithPermissionCheck(fileName, base64Data);
+                  await _saveFile(fileName, base64Data);
                 }
                 return {'success': true};
               },
             );
 
-            // PDF → Görsel için özel handler
             controller.addJavaScriptHandler(
               handlerName: 'saveImage',
               callback: (args) async {
                 if (args.length >= 2) {
                   final fileName = args[0] as String;
                   final base64Data = args[1] as String;
-                  await _saveImageFileWithPermissionCheck(fileName, base64Data);
+                  await _saveImageFile(fileName, base64Data);
                 }
                 return {'success': true};
               },
@@ -380,32 +325,6 @@ class _ToolWebViewState extends State<ToolWebView> {
           ),
       ],
     );
-  }
-
-  Future<void> _saveFileWithPermissionCheck(String fileName, String base64Data) async {
-    // İzinleri kontrol et
-    if (!_permissionsGranted) {
-      final hasPermission = await _requestPermissions();
-      if (!hasPermission) {
-        _showPermissionError();
-        return;
-      }
-    }
-
-    await _saveFile(fileName, base64Data);
-  }
-
-  Future<void> _saveImageFileWithPermissionCheck(String fileName, String base64Data) async {
-    // İzinleri kontrol et
-    if (!_permissionsGranted) {
-      final hasPermission = await _requestPermissions();
-      if (!hasPermission) {
-        _showPermissionError();
-        return;
-      }
-    }
-
-    await _saveImageFile(fileName, base64Data);
   }
 
   Future<void> _saveFile(String fileName, String base64Data) async {
@@ -562,99 +481,6 @@ class _ToolWebViewState extends State<ToolWebView> {
       print('Dosya açma sonucu: ${result.message}');
     } catch (e) {
       print('Dosya açma hatası: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Dosya açılamadı: $e'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
     }
-  }
-
-  void _showPermissionError() {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('📁 Depolama izni gerekiyor. Lütfen izin verin.'),
-          backgroundColor: Colors.orange,
-          duration: const Duration(seconds: 5),
-          action: SnackBarAction(
-            label: 'AYARLAR',
-            textColor: Colors.white,
-            onPressed: () => openAppSettings(),
-          ),
-        ),
-      );
-    }
-  }
-
-  void _showPermissionDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('📁 Depolama İzinleri'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('İzin Durumu: ${_permissionsGranted ? "✅ Verildi" : "❌ Bekliyor"}'),
-            const SizedBox(height: 10),
-            const Text(
-              'PDF dosyalarını kaydetmek için depolama izinlerine ihtiyaç var. '
-              'Eğer izin verilmediyse, aşağıdaki butondan izin isteyebilirsiniz.',
-              style: TextStyle(fontSize: 14),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Kapat'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _requestPermissions();
-            },
-            child: const Text('İzin İste'),
-          ),
-          TextButton(
-            onPressed: () => openAppSettings(),
-            child: const Text('Ayarlar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDownloadInfo() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('📁 Download Klasörü Bilgisi'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Yol: ${_downloadsDirectory?.path ?? "Bilinmiyor"}'),
-            Text('İzinler: ${_permissionsGranted ? "✅ Var" : "❌ Yok"}'),
-            const SizedBox(height: 10),
-            const Text(
-              'Dosyalarınız bu klasöre kaydediliyor. '
-              'Dosya yöneticinizden "Download" klasörünü kontrol edin.',
-              style: TextStyle(fontSize: 14),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Tamam'),
-          ),
-        ],
-      ),
-    );
   }
 }
