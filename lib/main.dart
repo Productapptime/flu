@@ -85,11 +85,40 @@ class _HomePageState extends State<HomePage> {
   Directory? _baseDir;
   Map<String, Color> _folderColors = {};
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
 
   @override
   void initState() {
     super.initState();
     _initDir();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text;
+    });
+  }
+
+  void _startSearch() {
+    setState(() {
+      _isSearching = true;
+    });
+  }
+
+  void _stopSearch() {
+    setState(() {
+      _isSearching = false;
+      _searchQuery = '';
+      _searchController.clear();
+    });
   }
 
   Future<void> _initDir() async {
@@ -650,7 +679,6 @@ class _HomePageState extends State<HomePage> {
     if (_searchQuery.isNotEmpty) {
       base = base
           .where((path) =>
-              path.toLowerCase().contains(_searchQuery.toLowerCase()) ||
               p.basename(path)
                   .toLowerCase()
                   .contains(_searchQuery.toLowerCase()))
@@ -756,26 +784,51 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(titles[_selectedIndex]),
-            if (_selectedIndex == 0 && _currentPath != _baseDir!.path)
-              Text(
-                p.relative(_currentPath!, from: _baseDir!.path),
-                style: const TextStyle(fontSize: 12),
+        title: _isSearching 
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search files...',
+                  border: InputBorder.none,
+                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                ),
+                style: const TextStyle(color: Colors.white),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(titles[_selectedIndex]),
+                  if (_selectedIndex == 0 && _currentPath != _baseDir!.path)
+                    Text(
+                      p.relative(_currentPath!, from: _baseDir!.path),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                ],
               ),
-          ],
-        ),
-        leading: _selectedIndex == 0 && _currentPath != _baseDir!.path && !_selectionMode
+        leading: _isSearching
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: _goBack,
+                onPressed: _stopSearch,
               )
-            : null,
-        actions: _selectionMode ? _buildSelectionModeActions() : _buildNormalModeActions(),
+            : (_selectedIndex == 0 && _currentPath != _baseDir!.path && !_selectionMode
+                ? IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: _goBack,
+                  )
+                : null),
+        actions: _isSearching 
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                  },
+                ),
+              ]
+            : (_selectionMode ? _buildSelectionModeActions() : _buildNormalModeActions()),
       ),
-      drawer: Drawer(
+      drawer: _isSearching ? null : Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
@@ -816,9 +869,9 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       body: _selectedIndex == 3 
-          ? ToolsPage(dark: widget.dark) // Tools sekmesi için yeni sayfa
+          ? ToolsPage(dark: widget.dark)
           : (_selectedIndex == 0 ? _buildAllFilesView(files) : _buildListView(files)),
-      bottomNavigationBar: BottomNavigationBar(
+      bottomNavigationBar: _isSearching ? null : BottomNavigationBar(
         currentIndex: _selectedIndex,
         selectedItemColor: Colors.red,
         unselectedItemColor: Colors.grey,
@@ -836,11 +889,11 @@ class _HomePageState extends State<HomePage> {
           BottomNavigationBarItem(icon: Icon(Icons.build), label: 'Tools'),
         ],
       ),
-      floatingActionButton: _selectedIndex == 0 ? FloatingActionButton(
+      floatingActionButton: _isSearching || _selectedIndex != 0 ? null : FloatingActionButton(
         onPressed: _importFile,
         backgroundColor: Colors.red,
         child: const Icon(Icons.add, color: Colors.white),
-      ) : null,
+      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
@@ -848,16 +901,10 @@ class _HomePageState extends State<HomePage> {
   List<Widget> _buildNormalModeActions() {
     return [
       // Search Icon
-      if (_selectedIndex != 3) // Tools sayfasında arama gösterme
+      if (_selectedIndex != 3)
       IconButton(
         icon: const Icon(Icons.search),
-        onPressed: () async {
-          final text = await showSearch<String>(
-            context: context,
-            delegate: FileSearchDelegate(initial: _searchQuery),
-          );
-          if (text != null) setState(() => _searchQuery = text);
-        },
+        onPressed: _startSearch,
       ),
       
       // Create Folder Icon (only in All Files)
@@ -922,10 +969,32 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildAllFilesView(List<String> files) {
+    if (_searchQuery.isNotEmpty && files.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No files found for "$_searchQuery"',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return ListView(
       children: [
         // Klasörler
-        ..._folders.map((folderPath) => _buildFolderItem(folderPath)),
+        ..._folders.where((folderPath) => 
+          _searchQuery.isEmpty || 
+          p.basename(folderPath).toLowerCase().contains(_searchQuery.toLowerCase())
+        ).map((folderPath) => _buildFolderItem(folderPath)),
         
         // Dosyalar
         ...files.map((filePath) => _buildFileItem(filePath)),
@@ -971,6 +1040,25 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildListView(List<String> files) {
+    if (_searchQuery.isNotEmpty && files.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No files found for "$_searchQuery"',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return ListView.builder(
       itemCount: files.length,
       itemBuilder: (_, i) => _buildFileItem(files[i]),
@@ -1061,44 +1149,7 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class FileSearchDelegate extends SearchDelegate<String> {
-  final String initial;
-  FileSearchDelegate({required this.initial}) {
-    query = initial;
-  }
-
-  @override
-  List<Widget>? buildActions(BuildContext context) => [
-    IconButton(
-      icon: const Icon(Icons.clear),
-      onPressed: () {
-        query = '';
-      },
-    ),
-  ];
-
-  @override
-  Widget? buildLeading(BuildContext context) => IconButton(
-    icon: const Icon(Icons.arrow_back),
-    onPressed: () {
-      close(context, query);
-    },
-  );
-
-  @override
-  Widget buildResults(BuildContext context) {
-    return _buildSearchResults();
-  }
-
-  @override
-  Widget buildSuggestions(BuildContext context) {
-    return _buildSearchResults();
-  }
-
-  Widget _buildSearchResults() {
-    return Container();
-  }
-}
+// FileSearchDelegate sınıfını kaldırdık çünkü artık gerek yok
 
 class ViewerScreen extends StatefulWidget {
   final File file;
