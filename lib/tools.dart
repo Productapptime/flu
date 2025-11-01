@@ -112,7 +112,7 @@ class _ToolsPageState extends State<ToolsPage> {
           ],
         ),
         content: Text(
-          'PDF dosyalarınızı Documents/pdfreadermanager klasörüne kaydetmek için "Tüm dosyalara erişim" iznine ihtiyacımız var.',
+          'PDF ve metin dosyalarınızı Documents/pdfreadermanager klasörüne kaydetmek için "Tüm dosyalara erişim" iznine ihtiyacımız var.',
           textAlign: TextAlign.center,
         ),
         actions: [
@@ -175,14 +175,12 @@ class _ToolWebViewState extends State<ToolWebView> {
       bool hasPermission = await Permission.manageExternalStorage.isGranted;
 
       if (hasPermission) {
-        // Gerçek Documents klasörünü kontrol et
         final documentsDir = Directory('/storage/emulated/0/Documents');
         if (!await documentsDir.exists()) {
           await documentsDir.create(recursive: true);
           print('📁 Documents klasörü oluşturuldu.');
         }
 
-        // İçinde pdfreadermanager klasörünü oluştur
         final target = Directory('${documentsDir.path}/pdfreadermanager');
         if (!await target.exists()) {
           await target.create(recursive: true);
@@ -191,7 +189,6 @@ class _ToolWebViewState extends State<ToolWebView> {
 
         _pdfReaderManagerDir = target;
       } else {
-        // İzin yoksa uygulama dizinini kullan
         final appDir = await getApplicationDocumentsDirectory();
         _pdfReaderManagerDir = Directory('${appDir.path}/pdfreadermanager');
         if (!await _pdfReaderManagerDir!.exists()) {
@@ -209,8 +206,24 @@ class _ToolWebViewState extends State<ToolWebView> {
     if (_pdfReaderManagerDir == null) await _initializeDirectory();
 
     try {
+      // Base64 verisini temizle
       final cleanBase64 = base64Data.replaceFirst(RegExp(r'^data:.*?base64,'), '');
       final bytes = base64.decode(cleanBase64);
+
+      // Uygun dosya uzantısını belirle
+      String extension = '';
+      if (base64Data.contains('application/pdf')) {
+        extension = '.pdf';
+      } else if (base64Data.contains('image/png')) {
+        extension = '.png';
+      } else if (base64Data.contains('image/jpeg')) {
+        extension = '.jpg';
+      } else if (base64Data.contains('text/plain')) {
+        extension = '.txt';
+      }
+
+      // Uzantı yoksa ekle
+      if (!fileName.contains('.')) fileName += extension;
 
       final file = File('${_pdfReaderManagerDir!.path}/$fileName');
       await file.writeAsBytes(bytes);
